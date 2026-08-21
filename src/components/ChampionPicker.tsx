@@ -10,8 +10,12 @@ import {
   type RefObject,
 } from "react";
 import { championIconUrl } from "@/lib/ddragon";
+import {
+  matchupFromStats,
+  type MatchupInfo,
+} from "@/lib/playerStats";
 import { subsequenceScore } from "@/lib/search";
-import type { Champion } from "@/lib/types";
+import type { Champion, Player, TierLabel } from "@/lib/types";
 
 export type PickerTarget = {
   team: "blue" | "red";
@@ -26,6 +30,12 @@ type Props = {
   version: string;
   used: Set<string>;
   triggerRef: RefObject<HTMLElement | null>;
+  /** Pick allié uniquement : joueur du rôle + adversaire du même rôle */
+  matchupContext?: {
+    player: Player;
+    enemy: Champion | null;
+  } | null;
+  slotTier?: (champId: string) => TierLabel | null;
   onPick: (champ: Champion | null) => void;
   onClose: () => void;
 };
@@ -38,6 +48,36 @@ function focusableWithin(root: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
 }
 
+function MatchupBadge({ info }: { info: MatchupInfo }) {
+  const color = info.weakSample
+    ? "var(--dim)"
+    : info.wr >= 52
+      ? "var(--ok)"
+      : info.wr >= 45
+        ? "var(--warn)"
+        : "var(--bad)";
+  return (
+    <span className="text-right text-[10px]" style={{ color }}>
+      {info.wr}% vs {info.vsName}
+      {info.games != null && (
+        <>
+          <br />
+          <span className="text-dim">
+            {info.games} part.
+            {info.weakSample ? " · échantillon faible" : ""}
+          </span>
+        </>
+      )}
+      {info.games == null && info.weakSample && (
+        <>
+          <br />
+          <span className="text-dim">échantillon faible</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 export function ChampionPicker({
   open,
   title,
@@ -45,6 +85,8 @@ export function ChampionPicker({
   version,
   used,
   triggerRef,
+  matchupContext,
+  slotTier,
   onPick,
   onClose,
 }: Props) {
@@ -175,29 +217,49 @@ export function ChampionPicker({
         />
 
         <div id="picker-results" role="listbox" className="max-h-[52vh] overflow-auto">
-          {results.map((c, i) => (
-            <button
-              key={c.id}
-              type="button"
-              role="option"
-              aria-selected={i === selected}
-              className={`flex w-full items-center gap-2 border-0 border-b border-[#141C27] px-2.5 py-1.5 text-left text-txt transition ${
-                i === selected ? "bg-panel2" : "bg-transparent"
-              } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold`}
-              onMouseEnter={() => setSelected(i)}
-              onClick={() => onPick(c)}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={championIconUrl(version, c.id)}
-                alt=""
-                width={34}
-                height={34}
-                className="h-[34px] w-[34px] shrink-0"
-              />
-              <span className="font-cond text-[15px]">{c.name}</span>
-            </button>
-          ))}
+          {results.map((c, i) => {
+            const tier = slotTier?.(c.id) ?? null;
+            const matchup =
+              matchupContext?.enemy != null
+                ? matchupFromStats(
+                    matchupContext.player.stats,
+                    c.id,
+                    matchupContext.enemy.id,
+                    matchupContext.enemy.name,
+                  )
+                : null;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                role="option"
+                aria-selected={i === selected}
+                className={`flex w-full items-center gap-2 border-0 border-b border-[#141C27] px-2.5 py-1.5 text-left text-txt transition ${
+                  i === selected ? "bg-panel2" : "bg-transparent"
+                } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold`}
+                onMouseEnter={() => setSelected(i)}
+                onClick={() => onPick(c)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={championIconUrl(version, c.id)}
+                  alt=""
+                  width={34}
+                  height={34}
+                  className="h-[34px] w-[34px] shrink-0"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="font-cond text-[15px]">{c.name}</span>
+                  {tier && (
+                    <span className="ml-1.5 text-[10px] text-gold">
+                      Tier {tier}
+                    </span>
+                  )}
+                </span>
+                {matchup && <MatchupBadge info={matchup} />}
+              </button>
+            );
+          })}
           {!results.length && (
             <div className="px-3.5 py-3.5 text-dim">
               Aucun champion disponible pour ces lettres.
