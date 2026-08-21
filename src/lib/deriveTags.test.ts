@@ -46,4 +46,14 @@ describe("deriveTags", () => {
       expect.arrayContaining(["ad", "ap", "dps", "waveclear"]),
     );
   });
+
+  it("n'attribue ni ad ni ap à un support à faibles dégâts", () => {
+    const tags = deriveTags({
+      info: { attack: 3, magic: 4, defense: 5 },
+      tags: ["Support"],
+    });
+    expect(tags).toContain("utility");
+    expect(tags).not.toContain("ad");
+    expect(tags).not.toContain("ap");
+  });
 });

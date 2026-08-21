@@ -1,6 +1,6 @@
 import { CURATED } from "@/data/tags";
 import { deriveTags } from "./deriveTags";
-import type { Champion, Tag } from "./types";
+import { isTag, type Champion, type Tag } from "./types";
 
 type RiotChampion = {
   id: string;
@@ -14,49 +14,80 @@ type ChampionsResponse = {
   data: Record<string, RiotChampion>;
 };
 
-let cached: { version: string; champions: Champion[] } | null = null;
+type LoadResult = { version: string; champions: Champion[] };
 
-export async function loadChampions(): Promise<{
-  version: string;
-  champions: Champion[];
-}> {
-  if (cached) return cached;
+const NETWORK_ERROR =
+  "Impossible de charger les champions depuis Data Dragon. Vérifie ta connexion et réessaie.";
 
-  const versions = (await (
-    await fetch("https://ddragon.leagueoflegends.com/api/versions.json")
-  ).json()) as string[];
-  const version = versions[0];
+let pending: Promise<LoadResult> | null = null;
 
-  const payload = (await (
-    await fetch(
+function parseCuratedTags(id: string, raw: string): Tag[] {
+  return raw.split(" ").map((token) => {
+    if (!isTag(token)) {
+      throw new Error(
+        `Tag inconnu « ${token} » pour le champion ${id} dans CURATED.`,
+      );
+    }
+    return token;
+  });
+}
+
+async function fetchChampions(): Promise<LoadResult> {
+  let versions: string[];
+  let payload: ChampionsResponse;
+
+  try {
+    const versionsRes = await fetch(
+      "https://ddragon.leagueoflegends.com/api/versions.json",
+    );
+    if (!versionsRes.ok) throw new Error("versions");
+    versions = (await versionsRes.json()) as string[];
+
+    const version = versions[0];
+    const champRes = await fetch(
       `https://ddragon.leagueoflegends.com/cdn/${version}/data/fr_FR/champion.json`,
-    )
-  ).json()) as ChampionsResponse;
+    );
+    if (!champRes.ok) throw new Error("champions");
+    payload = (await champRes.json()) as ChampionsResponse;
 
-  const champions = Object.values(payload.data)
-    .map((c) => {
-      const cur = CURATED[c.id];
-      let tags: Tag[] = cur
-        ? (cur.split(" ") as Tag[])
-        : deriveTags(c);
-      if (!tags.includes("ad") && !tags.includes("ap")) {
-        tags = tags.concat(
-          deriveTags(c).filter((t) => t === "ad" || t === "ap"),
-        );
-      }
-      return {
-        id: c.id,
-        name: c.name,
-        title: c.title,
-        tags: [...new Set(tags)],
-        curated: !!cur,
-        riotTags: c.tags,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
+    const champions = Object.values(payload.data)
+      .map((c) => {
+        const cur = CURATED[c.id];
+        const curated = cur !== undefined;
+        const tags: Tag[] = curated
+          ? parseCuratedTags(c.id, cur)
+          : deriveTags(c);
+        return {
+          id: c.id,
+          name: c.name,
+          title: c.title,
+          tags,
+          curated,
+          riotTags: c.tags,
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
-  cached = { version, champions };
-  return cached;
+    return { version, champions };
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message.startsWith("Tag inconnu")
+    ) {
+      throw err;
+    }
+    throw new Error(NETWORK_ERROR, { cause: err });
+  }
+}
+
+export function loadChampions(): Promise<LoadResult> {
+  if (!pending) {
+    pending = fetchChampions().catch((err) => {
+      pending = null;
+      throw err;
+    });
+  }
+  return pending;
 }
 
 export function championIconUrl(version: string, id: string): string {

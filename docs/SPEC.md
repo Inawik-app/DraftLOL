@@ -55,8 +55,8 @@ type Tag =
 | `poke`      | Poke           | Inflige des dégâts à distance sans s'exposer                  |
 | `burst`     | Burst          | Tue une cible en une rotation                                 |
 | `dps`       | DPS soutenu    | Dégâts continus, dépend de la durée du combat                 |
-| `ap`        | AP             | Dégâts majoritairement magiques                               |
-| `ad`        | AD             | Dégâts majoritairement physiques                              |
+| `ap`        | AP             | Menace de dégâts magiques : pousse l'adversaire à monter de la résistance magique à cause de ce champion |
+| `ad`        | AD             | Menace de dégâts physiques : pousse l'adversaire à monter de l'armure à cause de ce champion |
 | `waveclear` | Waveclear      | Nettoie les vagues, tient une ligne, défend un siège          |
 | `pick`      | Pick/Catch     | Isole et supprime une cible hors combat rangé                 |
 | `dive`      | Dive           | Atteint la backline adverse malgré la frontline               |
@@ -66,7 +66,9 @@ type Tag =
 | `splitpush` | Splitpush      | Menace une ligne latérale en 1v1 et force une réponse         |
 
 
-Un champion porte typiquement 3 à 5 tags. `ap` et `ad` sont exclusifs sauf hybride avéré.
+Un champion porte typiquement 3 à 5 tags.
+
+`ad` et `ap` ne décrivent pas le type de dégâts d'un champion, mais le fait qu'il constitue une **menace de dégâts réelle** — celle qui pousse l'adversaire à monter une résistance *à cause de lui*. Un champion dont les dégâts sont négligeables dans une composition (supports enchanteurs, tanks non menaçants) ne porte ni `ad` ni `ap`. La plupart des champions portent zéro ou un de ces deux tags ; les deux ensemble sont réservés aux hybrides avérés.
 
 ### Origine des tags
 
@@ -151,16 +153,16 @@ Le poids d'un tag dans le total est sa propre cible : dans le profil poke, `poke
 Appliqués sur `base`, dans cet ordre :
 
 
-| Situation                      | Malus | Note                  |
-| ------------------------------ | ----- | --------------------- |
-| Chaque tag en statut `high`    | −4    | `warn` — redondance   |
-| `n ≥ 3` et zéro `ad`           | −14   | `bad` — bloquant      |
-| `n ≥ 3` et zéro `ap`           | −14   | `bad` — bloquant      |
-| `n ≥ 4` et `min(ad, ap) === 1` | −5    | `warn` — déséquilibre |
-| `n ≥ 4` et zéro `frontline`    | −10   | `bad` — bloquant      |
+| Situation                      | Malus | Note                                      |
+| ------------------------------ | ----- | ----------------------------------------- |
+| Chaque tag en statut `high`    | −4    | `warn` — redondance                       |
+| `n ≥ 4` et zéro `ad`           | −14   | `bad` — aucune menace de dégâts physiques |
+| `n ≥ 4` et zéro `ap`           | −14   | `bad` — aucune menace de dégâts magiques  |
+| `n === 5` et `min(ad, ap) === 1` | −5  | `warn` — menace de dégâts déséquilibrée   |
+| `n ≥ 4` et zéro `frontline`    | −10   | `bad` — bloquant                          |
 
 
-Les malus AD/AP sont mutuellement exclusifs : si les deux manquent, un seul s'applique.
+Les deux premiers malus de menace (`ad` / `ap`) sont mutuellement exclusifs : si les deux manquent, un seul s'applique.
 
 ### 5.5 Bonus d'affinité
 
@@ -180,6 +182,7 @@ L'affinité ne s'applique qu'à l'équipe alliée. L'équipe adverse est évalu�
 - `n === 0` → `score: 0`, `notes: []`, jauges toutes à `have: 0`.
 - Résultat toujours borné `[0, 100]`.
 - Arrondi uniquement à l'affichage, jamais dans le calcul.
+- Si `base` vaut déjà 100, le bonus d'affinité est avalé par le plafond : sans écart au profil, il n'y a rien à compenser. `affinityBonus` reste calculé et exposé, mais `score` ne dépasse pas 100.
 
 ---
 

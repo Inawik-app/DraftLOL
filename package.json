@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:tags": "node scripts/check-tags.mts"
   },
   "dependencies": {
     "lz-string": "^1.5.0",

@@ -8,9 +8,13 @@ export type RiotChampionInput = {
 export function deriveTags(c: RiotChampionInput): Tag[] {
   const t = new Set<Tag>();
   const i = c.info || { attack: 5, magic: 5, defense: 5 };
-  if (i.magic >= i.attack) t.add("ap");
-  if (i.attack >= i.magic) t.add("ad");
   const k = c.tags || [];
+  const lowDamageSupport =
+    k.includes("Support") && i.attack < 5 && i.magic < 5;
+  if (!lowDamageSupport) {
+    if (i.magic >= i.attack) t.add("ap");
+    if (i.attack >= i.magic) t.add("ad");
+  }
   if (k.includes("Tank")) {
     t.add("frontline");
     t.add("engage");
