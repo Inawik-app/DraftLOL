@@ -1,0 +1,9 @@
+---
+description: Conventions du moteur d'analyse de composition
+globs: ["src/lib/**/*.ts"]
+---
+- Fonctions pures uniquement : pas d'acces reseau, pas de Date.now(), pas de Math.random().
+- Chaque fichier de src/lib a un .test.ts a cote, ecrit avant l'implementation.
+- Le type Tag est une union litterale. Tout switch sur Tag doit etre exhaustif.
+- Interdiction de `any` et de `as unknown as`.
+- Les scores sont bornes 0-100 et arrondis au moment de l'affichage, jamais dans le calcul.

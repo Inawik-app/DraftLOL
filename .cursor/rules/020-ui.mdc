@@ -1,0 +1,9 @@
+---
+description: Conventions UI
+globs: ["src/components/**", "src/app/**"]
+---
+- Server Components par defaut, "use client" seulement si etat ou event handler.
+- Chaque cadre cliquable est un <button> avec aria-label explicite.
+- Focus visible obligatoire, prefers-reduced-motion respecte.
+- Mobile d'abord : le board passe en colonne unique sous 900px.
+- Pas de localStorage pendant le rendu, uniquement dans un useEffect.

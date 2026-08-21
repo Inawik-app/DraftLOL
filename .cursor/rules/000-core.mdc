@@ -1,0 +1,13 @@
+---
+description: Contraintes globales Draft.board
+alwaysApply: true
+---
+- Next.js 15 App Router, TypeScript strict, Tailwind. Aucune librairie UI externe.
+- ZERO backend persistant. Pas de base de donnees, pas de Supabase, Prisma, Redis, Vercel KV.
+  Si une tache semble en exiger une, arrete-toi et propose une alternative client-side.
+- Tout etat partageable passe par un token encode et le hash de l'URL.
+- Les champions viennent de Data Dragon. Ne jamais coder en dur une liste de champions.
+  Ne jamais inventer de tags de composition : src/data/tags.ts est maintenu a la main.
+- Logique metier = fonctions pures dans src/lib/, sans React. UI dans src/components/.
+- Textes d'interface en francais. Code, noms de variables et commentaires en anglais.
+- Pas de default export sauf pour les pages Next.
