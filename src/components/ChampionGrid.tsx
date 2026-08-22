@@ -184,7 +184,7 @@ export function ChampionGrid({
                 {tier ? (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute right-0 top-0 border-b border-l border-line bg-ink/90 px-0.5 font-cond text-[9px] leading-none text-gold"
+                    className="pointer-events-none absolute right-0 top-0 flex h-6 w-6 items-center justify-center border-b border-l border-gold/60 bg-ink/95 font-cond text-[14px] font-bold leading-none tracking-tight text-gold shadow-[0_1px_3px_rgba(0,0,0,0.85)]"
                   >
                     {tier}
                   </span>
