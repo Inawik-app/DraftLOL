@@ -1,6 +1,9 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { setChampionCatalog } from "@/lib/room";
-import { orderChampionsForGrid } from "@/lib/championGridOrder";
+import {
+  matchesGridRoleFilter,
+  orderChampionsForGrid,
+} from "@/lib/championGridOrder";
 import type { Champion } from "@/lib/types";
 
 function mockChamp(id: string, key: number, name: string): Champion {
@@ -61,5 +64,20 @@ describe("orderChampionsForGrid", () => {
     const roster = adcTierPoolScenario().roster;
     const entries = orderChampionsForGrid(roster, [], true);
     expect(entries.map((e) => e.champion.id)).toEqual(roster.map((c) => c.id));
+  });
+});
+
+describe("matchesGridRoleFilter", () => {
+  it("garde les champions du pool même hors rôle filtré", () => {
+    // Ahri is mid, not adc — kept only because she is in the active tier pool.
+    const pool = new Set(["Jinx", "Ahri"]);
+    expect(matchesGridRoleFilter("Jinx", "adc", pool)).toBe(true);
+    expect(matchesGridRoleFilter("Ahri", "adc", pool)).toBe(true);
+    expect(matchesGridRoleFilter("Zed", "adc", pool)).toBe(false);
+  });
+
+  it("sans pool, ne garde que le rôle", () => {
+    expect(matchesGridRoleFilter("Jinx", "adc", null)).toBe(true);
+    expect(matchesGridRoleFilter("Ahri", "adc", null)).toBe(false);
   });
 });

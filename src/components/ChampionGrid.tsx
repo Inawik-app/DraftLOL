@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ROLES_BY_INDEX, ROLE_SHORT, championPlaysRole, type DraftRole } from "@/data/roles";
+import { ROLES_BY_INDEX, ROLE_SHORT, type DraftRole } from "@/data/roles";
 import { championIconUrl } from "@/lib/ddragon";
-import { orderChampionsForGrid } from "@/lib/championGridOrder";
+import { orderChampionsForGrid, matchesGridRoleFilter } from "@/lib/championGridOrder";
 import {
   CHAMPION_GRID_CELL_PX,
   CHAMPION_GRID_COLS,
@@ -54,15 +54,20 @@ export function ChampionGrid({
     [champions],
   );
 
+  const tierPoolSet = useMemo(() => {
+    if (!prioritizeTierPool || !tierPoolOrder?.length) return null;
+    return new Set(tierPoolOrder);
+  }, [prioritizeTierPool, tierPoolOrder]);
+
   /** Full roster with invisible gaps (search only). Role filter compacts matching champs. */
   const compactRoster = useMemo(() => {
     if (roleFilter === "all") return null;
     return rosterOrder.filter((c) => {
-      if (!championPlaysRole(c.id, roleFilter)) return false;
+      if (!matchesGridRoleFilter(c.id, roleFilter, tierPoolSet)) return false;
       if (query.trim() && subsequenceScore(query, c.name) === null) return false;
       return true;
     });
-  }, [rosterOrder, roleFilter, query]);
+  }, [rosterOrder, roleFilter, query, tierPoolSet]);
 
   const filteredChampions = compactRoster ?? rosterOrder;
 

@@ -1,4 +1,6 @@
 import { championIdFromKey } from "@/lib/ddragon";
+import type { DraftRole } from "@/data/roles";
+import { championPlaysRole } from "@/data/roles";
 import type { TierSeedLists } from "@/lib/tierSeed";
 import type { Champion } from "@/lib/types";
 import { TIER_LABELS } from "@/lib/types";
@@ -19,6 +21,19 @@ export function orderedChampionIdsFromTierLists(lists: TierSeedLists): string[] 
     }
   }
   return out;
+}
+
+/**
+ * Role filter for the champion grid: keep champs that play the role, plus any
+ * champ still in the active ally tier pool (even off-role).
+ */
+export function matchesGridRoleFilter(
+  championId: string,
+  role: DraftRole,
+  tierPoolIds: ReadonlySet<string> | null,
+): boolean {
+  if (championPlaysRole(championId, role)) return true;
+  return tierPoolIds?.has(championId) ?? false;
 }
 
 /**
