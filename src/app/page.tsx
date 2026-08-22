@@ -61,8 +61,6 @@ export default function Home() {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [loadError, setLoadError] = useState<DDragonLoadError | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [playersOpen, setPlayersOpen] = useState(false);
-  const [opponentsOpen, setOpponentsOpen] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState({
     signalingConnected: false,
@@ -258,20 +256,6 @@ export default function Home() {
           <div className="flex gap-1.5">
             <button
               type="button"
-              onClick={() => setPlayersOpen((o) => !o)}
-              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              Joueurs
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpponentsOpen((o) => !o)}
-              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              Adversaires
-            </button>
-            <button
-              type="button"
               onClick={handleLeaveRoom}
               className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
@@ -308,10 +292,6 @@ export default function Home() {
       />
 
       <PlayerProfilesSection
-        playersOpen={playersOpen}
-        opponentsOpen={opponentsOpen}
-        onTogglePlayers={() => setPlayersOpen((o) => !o)}
-        onToggleOpponents={() => setOpponentsOpen((o) => !o)}
         version={version}
         players={draft.players}
         opponents={draft.opponents}

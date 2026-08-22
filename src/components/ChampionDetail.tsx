@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { championIconUrl } from "@/lib/ddragon";
 import { scoreComp } from "@/lib/score";
 import { TAG_LABEL } from "@/lib/tagLabels";
+import { RoleTags } from "@/components/RoleTags";
 import type {
   Champion,
   Evaluation,
@@ -100,9 +101,10 @@ export function ChampionDetail({
           height={44}
           className="h-11 w-11 border border-line"
         />
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="font-cond text-[19px] leading-none">{champ.name}</div>
           <div className="text-[11px] text-dim">{champ.title}</div>
+          <RoleTags championId={champ.id} />
         </div>
       </div>
 

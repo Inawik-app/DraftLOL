@@ -6,10 +6,6 @@ import { OpponentsPanel } from "@/components/OpponentsPanel";
 import { PlayersPanel } from "@/components/PlayersPanel";
 
 type Props = {
-  playersOpen: boolean;
-  opponentsOpen: boolean;
-  onTogglePlayers: () => void;
-  onToggleOpponents: () => void;
   version: string;
   players: Player[];
   opponents: RoleProfile[];
@@ -29,8 +25,6 @@ export function PlayerProfilesSection(props: Props) {
   return (
     <div className="mt-4 grid grid-cols-1 gap-3 min-[900px]:grid-cols-[600px_600px]">
       <PlayersPanel
-        open={props.playersOpen}
-        onToggle={props.onTogglePlayers}
         version={props.version}
         players={props.players}
         myRoleIndex={props.myRoleIndex}
@@ -42,8 +36,6 @@ export function PlayerProfilesSection(props: Props) {
         embedded
       />
       <OpponentsPanel
-        open={props.opponentsOpen}
-        onToggle={props.onToggleOpponents}
         opponents={props.opponents}
         opggRegion={props.opggRegion}
         onSetOpggRegion={props.onSetOpggRegion}

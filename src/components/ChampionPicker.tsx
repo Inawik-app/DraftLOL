@@ -12,6 +12,7 @@ import {
 import { championIconUrl } from "@/lib/ddragon";
 import { subsequenceScore } from "@/lib/search";
 import type { Champion, TierLabel } from "@/lib/types";
+import { RoleTags } from "@/components/RoleTags";
 
 export type PickerTarget = {
   team: "blue" | "red";
@@ -194,6 +195,7 @@ export function ChampionPicker({
                 className={`flex w-full items-center gap-2 border-0 border-b border-[#141C27] px-2.5 py-1.5 text-left text-txt transition ${
                   i === selected ? "bg-panel2" : "bg-transparent"
                 } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold`}
+                style={{ minHeight: "58px" }}
                 onMouseEnter={() => setSelected(i)}
                 onClick={() => onPick(c)}
               >
@@ -205,13 +207,16 @@ export function ChampionPicker({
                   height={34}
                   className="h-[34px] w-[34px] shrink-0"
                 />
-                <span className="min-w-0 flex-1">
-                  <span className="font-cond text-[15px]">{c.name}</span>
-                  {tier && (
-                    <span className="ml-1.5 text-[10px] text-gold">
-                      Tier {tier}
-                    </span>
-                  )}
+                <span className="min-w-0 flex-1 overflow-hidden">
+                  <span className="block truncate font-cond text-[15px] leading-tight">
+                    {c.name}
+                    {tier ? (
+                      <span className="ml-1.5 text-[10px] text-gold">
+                        Tier {tier}
+                      </span>
+                    ) : null}
+                  </span>
+                  <RoleTags championId={c.id} />
                 </span>
               </button>
             );

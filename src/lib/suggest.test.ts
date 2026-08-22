@@ -1,8 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { PROFILES } from "@/data/profiles";
-import { championPlaysRole } from "@/data/roles";
+import {
+  ROLES_BY_INDEX,
+  championPlaysRole,
+  type DraftRole,
+} from "@/data/roles";
 import { suggestForRole } from "./suggest";
 import type { Champion, Pick, Player, Tag } from "./types";
+
+const ROLE_POOLS: Record<
+  DraftRole,
+  { valid: string; invalid: string }
+> = {
+  top: { valid: "Garen", invalid: "LeeSin" },
+  jgl: { valid: "LeeSin", invalid: "Ashe" },
+  mid: { valid: "Ahri", invalid: "Thresh" },
+  adc: { valid: "Ashe", invalid: "Alistar" },
+  sup: { valid: "Thresh", invalid: "LeeSin" },
+};
 
 function champ(id: string, tags: Tag[], key = id.length * 10): Champion {
   return {
@@ -109,24 +124,39 @@ describe("suggestForRole", () => {
     expect(result.champions.length).toBeLessThanOrEqual(5);
   });
 
-  it("slot SUP n'inclut que des champions jouables sup", () => {
-    const leeSin = champ("LeeSin", ["dps", "mobility"]);
-    const thresh = champ("Thresh", ["utility", "engage"]);
-    const lux = champ("Lux", ["ap", "utility", "waveclear"]);
+  it.each(ROLES_BY_INDEX.map((role, idx) => [role, idx] as const))(
+    "slot %s n'inclut que des champions jouables à ce rôle",
+    (role, roleIdx) => {
+      const { valid, invalid } = ROLE_POOLS[role];
+      const result = suggestForRole(
+        roleIdx,
+        emptySlots(),
+        profile,
+        emptyPlayers(),
+        [champ(invalid, ["ad"]), champ(valid, ["ad"])],
+      );
+
+      expect(result.champions.length).toBeGreaterThan(0);
+      for (const c of result.champions) {
+        expect(championPlaysRole(c.id, role)).toBe(true);
+      }
+      expect(result.champions.map((c) => c.id)).not.toContain(invalid);
+    },
+  );
+
+  it("favorise le rôle principal sur un rôle secondaire pour le même slot", () => {
+    const garen = champ("Garen", ["frontline", "dps", "ad"]);
+    const yasuo = champ("Yasuo", ["dps", "mobility", "ad"]);
 
     const result = suggestForRole(
-      4,
+      0,
       emptySlots(),
       profile,
       emptyPlayers(),
-      [leeSin, thresh, lux],
+      [garen, yasuo],
     );
 
-    expect(result.champions.length).toBeGreaterThan(0);
-    for (const c of result.champions) {
-      expect(championPlaysRole(c.id, "sup")).toBe(true);
-    }
-    expect(result.champions.map((c) => c.id)).not.toContain("LeeSin");
+    expect(result.champions[0]?.id).toBe("Garen");
   });
 
   it("élargit au roster complet si aucun candidat ne correspond au rôle", () => {

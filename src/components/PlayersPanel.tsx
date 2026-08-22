@@ -14,8 +14,6 @@ import { ROLE_LABELS } from "@/state/useDraft";
 const TIER_ORDER: TierLabel[] = ["S", "A", "B"];
 
 type Props = {
-  open: boolean;
-  onToggle: () => void;
   version: string;
   players: Player[];
   myRoleIndex: number | null;
@@ -31,8 +29,6 @@ type Props = {
 };
 
 export function PlayersPanel({
-  open,
-  onToggle,
   version,
   players,
   myRoleIndex,
@@ -47,33 +43,22 @@ export function PlayersPanel({
     <section
       className={`border border-line bg-panel p-3 ${embedded ? "" : "mt-4"}`}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <h2 className="font-cond text-base">Joueurs et tier lists</h2>
-          <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
-            Choisis ton rôle — seul ton slot est modifiable et synchronisé en
-            salle. Importe une seed TL1. sur la page{" "}
-            <Link
-              href="/tiers"
-              className="text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              Tier list
-            </Link>
-            .
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onToggle}
-          className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-        >
-          {open ? "Masquer" : "Joueurs"}
-        </button>
+      <div>
+        <h2 className="font-cond text-base">Joueurs et tier lists</h2>
+        <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
+          Choisis ton rôle — seul ton slot est modifiable et synchronisé en
+          salle. Importe une seed TL1. sur la page{" "}
+          <Link
+            href="/tiers"
+            className="text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          >
+            Tier list
+          </Link>
+          .
+        </p>
       </div>
 
-      {open && (
-        <>
-          <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 flex flex-wrap gap-1.5">
             <span className="font-cond self-center text-[11px] tracking-[0.1em] text-dim">
               Mon rôle :
             </span>
@@ -130,8 +115,6 @@ export function PlayersPanel({
               />
             ))}
           </div>
-        </>
-      )}
     </section>
   );
 }

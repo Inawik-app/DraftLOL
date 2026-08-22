@@ -10,7 +10,6 @@ import { subsequenceScore } from "@/lib/search";
 import {
   assignmentsToLists,
   listsToAssignments,
-  nextTierLabel,
   type TierAssignments,
 } from "@/lib/tierList";
 import {
@@ -37,6 +36,7 @@ import {
 import { extractToken } from "@/lib/token";
 import { isLocalStorageAvailable } from "@/lib/storage";
 import type { Champion, TierLabel } from "@/lib/types";
+import { RoleTags } from "@/components/RoleTags";
 
 const TIERS: TierLabel[] = ["S", "A", "B"];
 
@@ -67,6 +67,8 @@ export function TierListEditor({ version, champions }: Props) {
   const [importError, setImportError] = useState("");
   const [storageNotice, setStorageNotice] = useState(false);
   const [copyFlash, setCopyFlash] = useState("");
+  const [dragKey, setDragKey] = useState<number | null>(null);
+  const [dropTier, setDropTier] = useState<TierLabel | null>(null);
   const seedFieldRef = useRef<HTMLInputElement>(null);
   const hydratedRef = useRef(false);
 
@@ -124,16 +126,16 @@ export function TierListEditor({ version, champions }: Props) {
     setQuery("");
   }, []);
 
-  const cycleTier = useCallback((key: number) => {
+  const moveToTier = useCallback((key: number, tier: TierLabel) => {
     setAssignments((prev) => {
-      const cur = prev[key];
-      if (!cur) return prev;
-      const next = nextTierLabel(cur);
-      const out = { ...prev };
-      if (next) out[key] = next;
-      else delete out[key];
-      return out;
+      if (prev[key] === tier) return prev;
+      return { ...prev, [key]: tier };
     });
+  }, []);
+
+  const clearDragState = useCallback(() => {
+    setDragKey(null);
+    setDropTier(null);
   }, []);
 
   const removeKey = useCallback((key: number) => {
@@ -294,6 +296,11 @@ export function TierListEditor({ version, champions }: Props) {
         </div>
       </section>
 
+      <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
+        Glisse-dépose un champion entre les colonnes pour changer de tier. Clic
+        droit ou × pour retirer du pool.
+      </p>
+
       <div
         className="grid shrink-0"
         style={{
@@ -305,10 +312,26 @@ export function TierListEditor({ version, champions }: Props) {
           <section
             key={tier}
             aria-label={`Colonne tier ${tier}`}
-            className="flex shrink-0 flex-col border border-line bg-panel p-2.5"
+            className={`flex shrink-0 flex-col border bg-panel p-2.5 transition-colors ${
+              dropTier === tier
+                ? "border-gold bg-panel2"
+                : "border-line"
+            }`}
             style={{
               width: `${TIER_COLUMN_WIDTH_PX}px`,
               height: `${TIER_COLUMN_HEIGHT_PX + 48}px`,
+            }}
+            onDragEnter={() => setDropTier(tier)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const raw = e.dataTransfer.getData("text/plain");
+              const key = Number.parseInt(raw, 10);
+              if (Number.isInteger(key)) moveToTier(key, tier);
+              clearDragState();
             }}
           >
             <div className="mb-2 flex shrink-0 items-baseline justify-between">
@@ -325,7 +348,16 @@ export function TierListEditor({ version, champions }: Props) {
               {columns[tier].map((c) => (
                 <li
                   key={c.id}
-                  className="flex items-center gap-1.5 border border-line bg-panel2 px-1 py-0.5"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/plain", String(c.key));
+                    e.dataTransfer.effectAllowed = "move";
+                    setDragKey(c.key);
+                  }}
+                  onDragEnd={clearDragState}
+                  className={`flex cursor-grab items-center gap-1.5 border border-line bg-panel2 px-1 py-0.5 active:cursor-grabbing ${
+                    dragKey === c.key ? "opacity-50" : ""
+                  }`}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     removeKey(c.key);
@@ -337,20 +369,15 @@ export function TierListEditor({ version, champions }: Props) {
                     alt=""
                     width={28}
                     height={28}
-                    className="h-7 w-7 shrink-0"
+                    draggable={false}
+                    className="h-7 w-7 shrink-0 pointer-events-none"
                   />
-                  <span className="min-w-0 flex-1 truncate text-[12px]">
-                    {c.name}
+                  <span className="min-w-0 flex-1 overflow-hidden">
+                    <span className="block truncate text-[12px] leading-tight select-none">
+                      {c.name}
+                    </span>
+                    <RoleTags championId={c.id} />
                   </span>
-                  <button
-                    type="button"
-                    title="Changer de tier"
-                    aria-label={`${c.name}, tier ${tier} — cliquer pour déplacer`}
-                    onClick={() => cycleTier(c.key)}
-                    className="font-cond h-8 min-w-8 border border-line bg-ink px-1.5 text-[10px] text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-                  >
-                    {tier}
-                  </button>
                   <button
                     type="button"
                     title="Retirer"
@@ -363,7 +390,13 @@ export function TierListEditor({ version, champions }: Props) {
                 </li>
               ))}
               {columns[tier].length === 0 ? (
-                <li className="text-[11px] text-dim">Vide</li>
+                <li
+                  className={`py-6 text-center text-[11px] ${
+                    dragKey != null ? "text-gold" : "text-dim"
+                  }`}
+                >
+                  {dragKey != null ? "Déposer ici" : "Vide"}
+                </li>
               ) : null}
             </ul>
           </section>

@@ -13,6 +13,14 @@ export const ROLE_INDEX: Record<DraftRole, number> = {
 
 export const ROLES_BY_INDEX: DraftRole[] = ["top", "jgl", "mid", "adc", "sup"];
 
+export const ROLE_SHORT: Record<DraftRole, string> = {
+  top: "TOP",
+  jgl: "JGL",
+  mid: "MID",
+  adc: "ADC",
+  sup: "SUP",
+};
+
 /** championId -> playable draft roles */
 export const CHAMPION_ROLES: Record<string, DraftRole[]> = {
   Aatrox: ["jgl","top"],
@@ -196,4 +204,14 @@ export function rolesForChampion(id: string): DraftRole[] {
 
 export function championPlaysRole(id: string, role: DraftRole): boolean {
   return rolesForChampion(id).includes(role);
+}
+
+/** Score malus when the slot matches a non-primary role (primary = index 0). */
+export function secondaryRoleMalus(
+  championId: string,
+  slotRole: DraftRole,
+): number {
+  const idx = rolesForChampion(championId).indexOf(slotRole);
+  if (idx <= 0) return 0;
+  return idx * -2;
 }

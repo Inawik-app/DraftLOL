@@ -1,4 +1,8 @@
-import { ROLES_BY_INDEX, championPlaysRole } from "@/data/roles";
+import {
+  ROLES_BY_INDEX,
+  championPlaysRole,
+  secondaryRoleMalus,
+} from "@/data/roles";
 import { scoreComp } from "./score";
 import type {
   Champion,
@@ -62,7 +66,8 @@ export function suggestForRole(
     const delta = scoreComp(filled(next), profile).score - before;
     const bonus = tier ? AFFINITY_WEIGHT[tier] * 10 : 0;
     const malus = tier ? 0 : -6;
-    ranked.push({ c, v: delta + bonus + malus });
+    const roleMalus = secondaryRoleMalus(c.id, slotRole);
+    ranked.push({ c, v: delta + bonus + malus + roleMalus });
   }
 
   ranked.sort((a, b) => b.v - a.v);
