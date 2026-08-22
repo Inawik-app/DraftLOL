@@ -3,7 +3,7 @@ import { encodeTierSeed, decodeTierSeed } from "./tierSeed";
 
 describe("encodeTierSeed / decodeTierSeed", () => {
   it("aller-retour sur quatre listes", () => {
-    const lists = { S: [266, 103], A: [51, 777], B: [12], D: [222] };
+    const lists = { S: [266, 103], A: [51, 777], B: [12], C: [222] };
     const seed = encodeTierSeed(lists);
     expect(seed.startsWith("TL1.")).toBe(true);
     const decoded = decodeTierSeed(seed);
@@ -13,24 +13,24 @@ describe("encodeTierSeed / decodeTierSeed", () => {
       S: [103, 266],
       A: [51, 777],
       B: [12],
-      D: [222],
+      C: [222],
     });
   });
 
-  it("compatibilité seeds TL1 à trois listes (sans D)", () => {
+  it("compatibilité seeds TL1 à trois listes (sans C)", () => {
     const decoded = decodeTierSeed("TL1.||");
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) return;
-    expect(decoded.lists).toEqual({ S: [], A: [], B: [], D: [] });
+    expect(decoded.lists).toEqual({ S: [], A: [], B: [], C: [] });
   });
 
   it("listes vides", () => {
-    const seed = encodeTierSeed({ S: [], A: [], B: [], D: [] });
+    const seed = encodeTierSeed({ S: [], A: [], B: [], C: [] });
     expect(seed).toBe("TL1.|||");
     const decoded = decodeTierSeed(seed);
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) return;
-    expect(decoded.lists).toEqual({ S: [], A: [], B: [], D: [] });
+    expect(decoded.lists).toEqual({ S: [], A: [], B: [], C: [] });
   });
 
   it("moins de 60 caractères pour 30 champions", () => {
@@ -39,7 +39,7 @@ describe("encodeTierSeed / decodeTierSeed", () => {
       S: keys.slice(0, 10),
       A: keys.slice(10, 20),
       B: keys.slice(20, 30),
-      D: [],
+      C: [],
     });
     expect(seed.length).toBeLessThan(60);
     const decoded = decodeTierSeed(seed);

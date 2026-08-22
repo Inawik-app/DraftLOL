@@ -113,7 +113,7 @@ function PlayerTierCard({
   );
 
   const poolCounts = useMemo(() => {
-    const counts = { S: 0, A: 0, B: 0, D: 0 };
+    const counts = { S: 0, A: 0, B: 0, C: 0 };
     for (const [, tier] of pool) counts[tier as TierLabel] += 1;
     return counts;
   }, [pool]);
@@ -196,8 +196,8 @@ function PlayerTierCard({
         ) : (
           <>
             <p className="font-cond mb-1 text-[10px] tracking-[0.08em] text-dim">
-              S {poolCounts.S} · A {poolCounts.A} · B {poolCounts.B} · D{" "}
-              {poolCounts.D}
+              S {poolCounts.S} · A {poolCounts.A} · B {poolCounts.B} · C{" "}
+              {poolCounts.C}
             </p>
             <div className="flex flex-wrap gap-1">
               {pool.map(([id, tier]) => (

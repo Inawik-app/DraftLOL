@@ -12,11 +12,11 @@ describe("tierList assignments", () => {
     expect(listsToAssignments(lists)).toEqual(assignments);
   });
 
-  it("nextTierLabel cycle S → A → B → D → null", () => {
+  it("nextTierLabel cycle S → A → B → C → null", () => {
     expect(nextTierLabel("S")).toBe("A");
     expect(nextTierLabel("A")).toBe("B");
-    expect(nextTierLabel("B")).toBe("D");
-    expect(nextTierLabel("D")).toBeNull();
+    expect(nextTierLabel("B")).toBe("C");
+    expect(nextTierLabel("C")).toBeNull();
   });
 });
 
@@ -44,7 +44,7 @@ describe("tierListStorage", () => {
   it("save et load une tier list versionnée", async () => {
     const { saveTierListToStorage, loadTierListFromStorage, TIER_LIST_STORAGE_KEY } =
       await import("./tierListStorage");
-    const lists = { S: [103], A: [266], B: [], D: [] };
+    const lists = { S: [103], A: [266], B: [], C: [] };
     expect(saveTierListToStorage(lists)).toBe(true);
     expect(loadTierListFromStorage()).toEqual(lists);
     expect(localStorage.getItem(TIER_LIST_STORAGE_KEY)).toContain('"v":1');

@@ -220,7 +220,7 @@ describe("scoreComp", () => {
         for (let t = 0; t < tagCount; t++) {
           tags.push(ALL_TAGS[Math.floor(Math.random() * ALL_TAGS.length)]);
         }
-        const tiers: (TierLabel | null)[] = ["S", "A", "B", "D", null];
+        const tiers: (TierLabel | null)[] = ["S", "A", "B", "C", null];
         picks.push(
           makePick(
             [...new Set(tags)],

@@ -18,9 +18,9 @@ const TAGS = [
 
 export type Tag = (typeof TAGS)[number];
 
-export type TierLabel = "S" | "A" | "B" | "D";
+export type TierLabel = "S" | "A" | "B" | "C";
 
-export const TIER_LABELS: TierLabel[] = ["S", "A", "B", "D"];
+export const TIER_LABELS: TierLabel[] = ["S", "A", "B", "C"];
 
 export interface Champion {
   id: string;

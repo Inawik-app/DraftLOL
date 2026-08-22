@@ -14,7 +14,7 @@ export function listsToAssignments(lists: TierSeedLists): TierAssignments {
   for (const key of lists.S) out[key] = "S";
   for (const key of lists.A) out[key] = "A";
   for (const key of lists.B) out[key] = "B";
-  for (const key of lists.D) out[key] = "D";
+  for (const key of lists.C) out[key] = "C";
   return out;
 }
 
@@ -25,7 +25,7 @@ export function assignmentsToLists(assignments: TierAssignments): TierSeedLists 
     if (!Number.isInteger(key) || key < 0) continue;
     lists[tier].push(key);
   }
-  for (const tier of ["S", "A", "B", "D"] as const) {
+  for (const tier of ["S", "A", "B", "C"] as const) {
     lists[tier].sort((a, b) => a - b);
   }
   return lists;
@@ -46,9 +46,9 @@ export function tierListsToPlayerTiers(lists: TierSeedLists): Record<string, Tie
     const id = championIdFromKey(key);
     if (id) tiers[id] = "B";
   }
-  for (const key of lists.D) {
+  for (const key of lists.C) {
     const id = championIdFromKey(key);
-    if (id) tiers[id] = "D";
+    if (id) tiers[id] = "C";
   }
   return tiers;
 }
@@ -68,7 +68,7 @@ export function playerTiersToTierLists(
 export function nextTierLabel(tier: TierLabel): TierLabel | null {
   if (tier === "S") return "A";
   if (tier === "A") return "B";
-  if (tier === "B") return "D";
+  if (tier === "B") return "C";
   return null;
 }
 
@@ -84,6 +84,6 @@ export function championsInLists(
     S: pick(lists.S),
     A: pick(lists.A),
     B: pick(lists.B),
-    D: pick(lists.D),
+    C: pick(lists.C),
   };
 }

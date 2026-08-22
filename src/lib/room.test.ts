@@ -60,7 +60,7 @@ describe("room join semantics", () => {
 });
 
 describe("shared players map", () => {
-  const emptySeed = encodeTierSeed({ S: [], A: [], B: [], D: [] });
+  const emptySeed = encodeTierSeed({ S: [], A: [], B: [], C: [] });
 
   it("un client rejoignant reçoit les tier lists publiées sans écraser les autres", () => {
     const docA = new Y.Doc();

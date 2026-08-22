@@ -112,7 +112,7 @@ export function TierListEditor({ version, champions }: Props) {
   }, [query, champions, assignedKeys, roleFilter]);
 
   const columns = useMemo(() => {
-    const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [], D: [] };
+    const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [], C: [] };
     for (const tier of TIERS) {
       out[tier] = lists[tier]
         .map((key) => championsByKey.get(key))

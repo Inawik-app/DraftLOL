@@ -15,11 +15,16 @@ export function loadTierListFromStorage(): TierSeedLists | null {
     if (!raw) return null;
     const data = JSON.parse(raw) as StoredTierList;
     if (data?.v !== 1 || !data.lists) return null;
+    const lists = data.lists as TierSeedLists & { D?: number[] };
     return {
-      S: Array.isArray(data.lists.S) ? data.lists.S : [],
-      A: Array.isArray(data.lists.A) ? data.lists.A : [],
-      B: Array.isArray(data.lists.B) ? data.lists.B : [],
-      D: Array.isArray(data.lists.D) ? data.lists.D : [],
+      S: Array.isArray(lists.S) ? lists.S : [],
+      A: Array.isArray(lists.A) ? lists.A : [],
+      B: Array.isArray(lists.B) ? lists.B : [],
+      C: Array.isArray(lists.C)
+        ? lists.C
+        : Array.isArray(lists.D)
+          ? lists.D
+          : [],
     };
   } catch {
     return null;
