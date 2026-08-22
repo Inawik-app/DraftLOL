@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { championIconUrl } from "@/lib/ddragon";
 import type { OpggRegion, RoleProfile } from "@/lib/opggLink";
-import { tierListsToPlayerTiers } from "@/lib/tierList";
-import { decodeTierSeed } from "@/lib/tierSeed";
+import { playerTiersToTierLists, tierListsToPlayerTiers } from "@/lib/tierList";
+import { decodeTierSeed, encodeTierSeed } from "@/lib/tierSeed";
 import { extractToken } from "@/lib/token";
 import type { Player, TierLabel } from "@/lib/types";
 import { TIER_LABELS } from "@/lib/types";
@@ -43,8 +43,8 @@ export function PlayersPanel({
       <div>
         <h2 className="font-cond text-base">Joueurs et tier lists</h2>
         <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
-          Profils alliés synchronisés en salle. Importe une seed TL1. sur la
-          page{" "}
+          Profils alliés synchronisés en salle. Importe ou exporte une seed TL1.
+          Édition complète sur la page{" "}
           <Link
             href="/tiers"
             className="text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
@@ -105,6 +105,16 @@ function PlayerTierCard({
   const [seedIn, setSeedIn] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk, setImportOk] = useState("");
+  const [copyFlash, setCopyFlash] = useState("");
+  const seedFieldRef = useRef<HTMLInputElement>(null);
+
+  const exportSeed = useMemo(
+    () =>
+      encodeTierSeed(
+        playerTiersToTierLists(data.tiers as Record<string, TierLabel>),
+      ),
+    [data.tiers],
+  );
 
   const pool = Object.entries(data.tiers).sort(
     (a, b) =>
@@ -138,6 +148,19 @@ function PlayerTierCard({
     setSeedIn("");
     setImportOk(`${Object.keys(tiers).length} champions importés.`);
     window.setTimeout(() => setImportOk(""), 2600);
+  };
+
+  const copySeed = async () => {
+    setCopyFlash("");
+    try {
+      await navigator.clipboard.writeText(exportSeed);
+      setCopyFlash("Seed copiée.");
+    } catch {
+      seedFieldRef.current?.focus();
+      seedFieldRef.current?.select();
+      setCopyFlash("Sélectionne la seed puis Ctrl+C (Cmd+C sur Mac).");
+    }
+    window.setTimeout(() => setCopyFlash(""), 2600);
   };
 
   return (
@@ -186,6 +209,31 @@ function PlayerTierCard({
         <p className="mb-1 text-[10px] text-gold" role="status">
           {importOk}
         </p>
+      ) : null}
+      {copyFlash ? (
+        <p className="mb-1 text-[10px] text-gold" role="status">
+          {copyFlash}
+        </p>
+      ) : null}
+
+      {pool.length > 0 ? (
+        <div className="mb-1.5 flex gap-1.5">
+          <input
+            ref={seedFieldRef}
+            readOnly
+            value={exportSeed}
+            onFocus={(e) => e.target.select()}
+            className="min-w-0 flex-1 border border-line bg-ink px-1.5 py-1 font-mono text-[10px] text-gold focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
+            aria-label={`Seed TL1 exportée pour ${roleLabel}`}
+          />
+          <button
+            type="button"
+            onClick={copySeed}
+            className="font-cond shrink-0 border border-line bg-ink px-2 py-1 text-[11px] tracking-[0.08em] text-txt hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          >
+            Copier
+          </button>
+        </div>
       ) : null}
 
       <div className="mt-1.5">

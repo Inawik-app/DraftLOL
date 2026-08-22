@@ -39,6 +39,7 @@ import {
   getChampionById,
   getDraftMap,
   isRoomConnected,
+  isRoomPersistenceReady,
   readSharedDraft,
   readSharedPlayers,
   hasSharedDraftKeys,
@@ -179,7 +180,7 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
   }, []);
 
   const publishPlayerSlot = useCallback((index: number, player: Player) => {
-    if (!isRoomConnected()) return;
+    if (!isRoomConnected() || !isRoomPersistenceReady()) return;
     writeSharedPlayer(index, entryFromPlayer(player));
   }, []);
 
@@ -190,7 +191,7 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       nextBans: { blue: TeamBans; red: TeamBans },
       nextSeries: SeriesState,
     ) => {
-      if (!isRoomConnected() || !getDraftMap()) return;
+      if (!isRoomConnected() || !getDraftMap() || !isRoomPersistenceReady()) return;
       writeSharedDraft(
         sharedPayload(nextProfile, nextPickIds, nextBans, nextSeries),
       );

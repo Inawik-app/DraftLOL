@@ -52,6 +52,42 @@ describe("room join semantics", () => {
     expect(remote?.picks.blue.filter(Boolean)).toEqual(["Ahri", "Zed", "Lux"]);
   });
 
+  it("doc B restauré depuis un état IDB ancien reçoit les picks récents de doc A", () => {
+    const docB = new Y.Doc();
+    writeSharedDraftToDoc(docB, {
+      profileKey: "teamfight",
+      picks: {
+        blue: ["Ahri", "", "", "", ""],
+        red: ["", "", "", "", ""],
+      },
+      bans: {
+        blue: ["", "", "", "", ""],
+        red: ["", "", "", "", ""],
+      },
+      series: { ...EMPTY_SERIES },
+    });
+
+    const docA = new Y.Doc();
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+    writeSharedDraftToDoc(docA, {
+      profileKey: "teamfight",
+      picks: {
+        blue: ["Ahri", "Zed", "Lux", "", ""],
+        red: ["", "", "", "", ""],
+      },
+      bans: {
+        blue: ["", "", "", "", ""],
+        red: ["", "", "", "", ""],
+      },
+      series: { ...EMPTY_SERIES },
+    });
+
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    const restored = readSharedDraft(docB.getMap("draft"));
+    expect(restored?.picks.blue.filter(Boolean)).toEqual(["Ahri", "Zed", "Lux"]);
+  });
+
   it("connectRoom n'écrit jamais dans la Y.Map draft", () => {
     connectRoom("test-room-no-write");
     expect(getDraftMap()?.size ?? 0).toBe(0);

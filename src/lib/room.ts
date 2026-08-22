@@ -1,4 +1,5 @@
 import * as Y from "yjs";
+import { IndexeddbPersistence, clearDocument } from "y-indexeddb";
 import { WebrtcProvider } from "y-webrtc";
 import type { ProfileKey } from "@/data/profiles";
 import {
@@ -43,11 +44,22 @@ const emptyBanIds = (): TeamBanIds => ({
   red: ["", "", "", "", ""],
 });
 
+export type RoomPersistenceStatus = "idle" | "loading" | "ready" | "unavailable";
+
+export type DisconnectRoomOptions = {
+  /** Removes the IndexedDB snapshot for the active room (e.g. when leaving). */
+  clearIndexedDb?: boolean;
+};
+
 let ydoc: Y.Doc | null = null;
 let provider: WebrtcProvider | null = null;
+let idbPersistence: IndexeddbPersistence | null = null;
 let draftMap: Y.Map<unknown> | null = null;
 let playersMap: Y.Map<unknown> | null = null;
 let activeRoomName: string | null = null;
+let persistenceStatus: RoomPersistenceStatus = "idle";
+
+const persistenceListeners = new Set<(status: RoomPersistenceStatus) => void>();
 
 let championById = new Map<string, Champion>();
 const catalogListeners = new Set<() => void>();
@@ -158,6 +170,62 @@ function onProviderPeers(event: {
   updatePeerCount(event.webrtcPeers, event.bcPeers);
 }
 
+function setPersistenceStatus(next: RoomPersistenceStatus) {
+  if (persistenceStatus === next) return;
+  persistenceStatus = next;
+  for (const listener of persistenceListeners) {
+    listener(persistenceStatus);
+  }
+}
+
+function onPersistenceSynced() {
+  if (persistenceStatus === "ready") return;
+  setPersistenceStatus("ready");
+}
+
+function startIndexedDbPersistence(roomName: string, doc: Y.Doc): void {
+  if (typeof indexedDB === "undefined") {
+    setPersistenceStatus("unavailable");
+    return;
+  }
+
+  try {
+    idbPersistence = new IndexeddbPersistence(roomName, doc);
+    idbPersistence.on("synced", onPersistenceSynced);
+    void idbPersistence.whenSynced
+      .then(onPersistenceSynced)
+      .catch(() => {
+        if (idbPersistence) {
+          idbPersistence.off("synced", onPersistenceSynced);
+          void idbPersistence.destroy();
+          idbPersistence = null;
+        }
+        setPersistenceStatus("unavailable");
+      });
+  } catch {
+    idbPersistence = null;
+    setPersistenceStatus("unavailable");
+  }
+}
+
+export function getRoomPersistenceStatus(): RoomPersistenceStatus {
+  return persistenceStatus;
+}
+
+/** True once IndexedDB has synced or persistence is unavailable — safe to read/write the doc. */
+export function isRoomPersistenceReady(): boolean {
+  if (!activeRoomName) return false;
+  return persistenceStatus === "ready" || persistenceStatus === "unavailable";
+}
+
+export function subscribeRoomPersistence(
+  listener: (status: RoomPersistenceStatus) => void,
+): () => void {
+  persistenceListeners.add(listener);
+  listener(persistenceStatus);
+  return () => persistenceListeners.delete(listener);
+}
+
 function teardownProvider() {
   if (provider) {
     console.log("[room] provider destroy", { roomName: activeRoomName });
@@ -165,6 +233,12 @@ function teardownProvider() {
     provider.off("peers", onProviderPeers);
     provider.destroy();
     provider = null;
+  }
+  if (idbPersistence) {
+    console.log("[room] idb persistence destroy", { roomName: activeRoomName });
+    idbPersistence.off("synced", onPersistenceSynced);
+    void idbPersistence.destroy();
+    idbPersistence = null;
   }
   if (ydoc) {
     console.log("[room] ydoc destroy", { roomName: activeRoomName, clientID: ydoc.clientID });
@@ -239,7 +313,7 @@ export function writeSharedPlayer(
   roleIndex: number,
   entry: SharedPlayerEntry,
 ): void {
-  if (!ydoc || !playersMap) {
+  if (!ydoc || !playersMap || !isRoomPersistenceReady()) {
     console.log("[room] writeSharedPlayer SKIP (no map)", {
       roleIndex,
       hasYdoc: !!ydoc,
@@ -283,7 +357,7 @@ export function subscribePlayersMap(
  * connectRoom never calls this.
  */
 export function writeSharedDraft(payload: SharedDraftPayload): void {
-  if (!ydoc || !draftMap) {
+  if (!ydoc || !draftMap || !isRoomPersistenceReady()) {
     console.log("[room] write SKIP (no map)", {
       hasYdoc: !!ydoc,
       hasMap: !!draftMap,
@@ -329,6 +403,9 @@ export function connectRoom(roomName: string): void {
   draftMap = ydoc.getMap("draft");
   playersMap = ydoc.getMap("players");
 
+  setPersistenceStatus("loading");
+  startIndexedDbPersistence(roomName, ydoc);
+
   console.log("[room] provider create", {
     roomName,
     clientID: ydoc.clientID,
@@ -353,9 +430,19 @@ export function connectRoom(roomName: string): void {
   emitPlayersMap();
 }
 
-export function disconnectRoom(): void {
+export function disconnectRoom(options?: DisconnectRoomOptions): void {
+  const roomNameToClear =
+    options?.clearIndexedDb && activeRoomName ? activeRoomName : null;
+
   detachDebugMapObserver();
   teardownProvider();
+  setPersistenceStatus("idle");
+
+  if (roomNameToClear) {
+    void clearDocument(roomNameToClear).catch(() => {
+      /* IndexedDB may be unavailable — ignore */
+    });
+  }
 }
 
 /** Connect or disconnect from the WebRTC room based on the current URL hash. */

@@ -16,9 +16,12 @@ import {
   loadChampions,
 } from "@/lib/ddragon";
 import {
+  disconnectRoom,
   setChampionCatalog,
+  subscribeRoomPersistence,
   subscribeRoomStatus,
   syncRoomFromLocation,
+  type RoomPersistenceStatus,
 } from "@/lib/room";
 import { scoreComp } from "@/lib/score";
 import {
@@ -69,6 +72,8 @@ export default function Home() {
   });
   const [hashNotice, setHashNotice] = useState<string | null>(null);
   const [showStorageNotice, setShowStorageNotice] = useState(false);
+  const [roomPersistence, setRoomPersistence] =
+    useState<RoomPersistenceStatus>("idle");
   const draft = useDraft();
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
@@ -112,6 +117,8 @@ export default function Home() {
   }, [champions]);
 
   useEffect(() => subscribeRoomStatus(setRoomStatus), []);
+
+  useEffect(() => subscribeRoomPersistence(setRoomPersistence), []);
 
   useEffect(() => {
     if (!champions.length || restoredRef.current) return;
@@ -186,6 +193,7 @@ export default function Home() {
   };
 
   const handleLeaveRoom = () => {
+    disconnectRoom({ clearIndexedDb: true });
     lastWrittenRidRef.current = null;
     setRoomId(generateRoomId());
   };
@@ -222,6 +230,19 @@ export default function Home() {
       <div className="mx-auto max-w-[1240px] px-3.5 py-3.5">
         <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
           Chargement du patch depuis Data Dragon…
+        </p>
+      </div>
+    );
+  }
+
+  const roomPersistenceReady =
+    roomPersistence === "ready" || roomPersistence === "unavailable";
+
+  if (!roomPersistenceReady) {
+    return (
+      <div className="mx-auto max-w-[1240px] px-3.5 py-3.5">
+        <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
+          Restauration de la salle…
         </p>
       </div>
     );

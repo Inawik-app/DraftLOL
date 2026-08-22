@@ -269,16 +269,20 @@ Une seule action UI : « Copier le lien de la salle » (`#r=<rid>`).
 
 ## 10. Temps réel
 
-Yjs + `y-webrtc`. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling. Le `rid` aléatoire évite toute fuite de données via le nom de room — les tier lists peuvent donc vivre dans le document partagé.
+Yjs + `y-webrtc` + **`y-indexeddb`**. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling. Le `rid` aléatoire évite toute fuite de données via le nom de room — les tier lists peuvent donc vivre dans le document partagé.
+
+**Persistance locale :** le même `Y.Doc` est branché sur un `IndexeddbPersistence` (nom = `roomName`) en parallèle du `WebrtcProvider`. Yjs fusionne les deux sources sans conflit. L'interface attend l'événement **`synced`** de la persistance avant d'être exploitable, pour éviter qu'un rendu sur document vide n'écrase l'état restauré. Si IndexedDB est indisponible (navigation privée, quota, navigateur restrictif), l'app fonctionne sans persistance locale, sans erreur bloquante.
+
+**Quitter la salle** génère un nouveau `rid` → nouveau `roomName` → nouvelle base IndexedDB ; la base de l'ancienne salle est supprimée (`clearDocument`). Aucune base de données serveur : IndexedDB reste entièrement côté client.
 
 Sans `rid` dans le hash : pas de provider, le site fonctionne normalement en solo.
 
 Document partagé :
 
-- `Y.Map` **"draft"** (pattern A) : `profileKey`, `picks` et `bans` en valeurs JSON plates (identifiants de champions). **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, `loadRoom` (import offline avec contenu draft).
-- `Y.Map` **"players"** : une entrée par rôle (clés `"0"`…`"4"`), valeur `{ name, tierSeed }` (seed TL1.). **Chaque client écrit uniquement son propre slot** (index choisi dans l'UI). Personne n'écrit l'entrée d'un autre. À la jointure, un client lit les entrées distantes sans écraser les siennes ni celles des autres.
+- `Y.Map` **"draft"** (pattern A) : `profileKey`, `picks`, `bans` et **`series`** (série fearless) en valeurs JSON plates. **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant ou restauré depuis IndexedDB remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, contrôles fearless, `loadRoom` (import offline avec contenu draft).
+- `Y.Map` **"players"** : une entrée par rôle (clés `"0"`…`"4"`), valeur `{ name, tierSeed }` (seed TL1.). Chaque client peut mettre à jour n'importe quel slot (last-write-wins). À la jointure, un client lit les entrées distantes sans écraser via `connectRoom`.
 
-**Hors du document partagé, strictement local :** liens op.gg alliés et adversaires (localStorage par index de rôle), profils adverses.
+**Hors du document partagé, strictement local (localStorage) :** liens op.gg alliés, **profils adverses** (pseudos + op.gg), région op.gg. Les tier lists et l'état draft/fearless **survivent à un rechargement** via IndexedDB (+ sync WebRTC si des pairs sont connectés).
 
 Le site reste pleinement fonctionnel sans aucun pair connecté. Le nombre de pairs connectés est affiché (ou « Hors ligne » si le signaling est coupé) ; aucune fonctionnalité n'en dépend.
 
