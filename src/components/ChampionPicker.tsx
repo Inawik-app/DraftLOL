@@ -218,7 +218,11 @@ export function ChampionPicker({
           aria-controls="picker-results"
         />
 
-        <div id="picker-results" role="listbox" className="max-h-[52vh] overflow-auto">
+        <div
+          id="picker-results"
+          role="listbox"
+          className="h-[320px] shrink-0 overflow-y-auto"
+        >
           {results.map((c, i) => {
             const tier = slotTier?.(c.id) ?? null;
             const matchup =

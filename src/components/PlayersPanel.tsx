@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { championIconUrl } from "@/lib/ddragon";
 import { parsePlayerStats } from "@/lib/playerStats";
 import { tierListsToPlayerTiers } from "@/lib/tierList";
@@ -36,15 +36,6 @@ export function PlayersPanel({
   onUpdatePlayer,
   onImportPlayerTiers,
 }: Props) {
-  const [hash, setHash] = useState("");
-
-  useEffect(() => {
-    const read = () => setHash(window.location.hash);
-    read();
-    window.addEventListener("hashchange", read);
-    return () => window.removeEventListener("hashchange", read);
-  }, []);
-
   return (
     <section className="mt-4 border border-line bg-panel p-3">
       <div className="flex items-center justify-between gap-2">
@@ -54,7 +45,7 @@ export function PlayersPanel({
             Choisis ton rôle — seul ton slot est modifiable et synchronisé en
             salle. Importe une seed TL1. sur la page{" "}
             <Link
-              href={`/tiers${hash}`}
+              href="/tiers"
               className="text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               Tier list
@@ -106,7 +97,7 @@ export function PlayersPanel({
                 version={version}
                 data={players[i]}
                 editable={myRoleIndex === i}
-                tiersLink={`/tiers${hash}`}
+                tiersLink="/tiers"
                 onUpdate={(patch) => onUpdatePlayer(i, patch)}
                 onImport={(tiers) => onImportPlayerTiers(i, tiers)}
               />

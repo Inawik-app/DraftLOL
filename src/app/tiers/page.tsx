@@ -10,6 +10,16 @@ import {
 } from "@/lib/ddragon";
 import { setChampionCatalog } from "@/lib/room";
 
+/** /tiers never carries the draft board hash — strip legacy fragments on load. */
+function stripBoardHashFromUrl(): void {
+  if (typeof window === "undefined" || !window.location.hash) return;
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}`,
+  );
+}
+
 export default function TiersPage() {
   const [version, setVersion] = useState<string | null>(null);
   const [champions, setChampions] = useState<
@@ -17,6 +27,10 @@ export default function TiersPage() {
   >([]);
   const [loadError, setLoadError] = useState<DDragonLoadError | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+
+  useEffect(() => {
+    stripBoardHashFromUrl();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -1,49 +1,29 @@
-const BASE64URL =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-function bytesToBase64url(bytes: Uint8Array): string {
+/** Web-safe base64url (RFC 4648) — no Node Buffer APIs. */
+export function bytesToBase64url(bytes: Uint8Array): string {
   if (bytes.length === 0) return "";
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64url");
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!);
   }
-  let out = "";
-  for (let i = 0; i < bytes.length; i += 3) {
-    const b0 = bytes[i]!;
-    const b1 = i + 1 < bytes.length ? bytes[i + 1]! : 0;
-    const b2 = i + 2 < bytes.length ? bytes[i + 2]! : 0;
-    const n = (b0 << 16) | (b1 << 8) | b2;
-    out += BASE64URL[(n >> 18) & 63];
-    out += BASE64URL[(n >> 12) & 63];
-    out += i + 1 < bytes.length ? BASE64URL[(n >> 6) & 63] : "";
-    out += i + 2 < bytes.length ? BASE64URL[n & 63] : "";
-  }
-  return out;
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
-function base64urlToBytes(s: string): Uint8Array | null {
-  if (!s) return new Uint8Array(0);
-  if (!/^[A-Za-z0-9_-]+$/.test(s)) return null;
+/** Inverse of bytesToBase64url; returns null on invalid input (never throws). */
+export function base64urlToBytes(s: string): Uint8Array | null {
+  if (typeof s !== "string" || !s) return new Uint8Array(0);
+  if (!/^[A-Za-z0-9_-]*$/.test(s)) return null;
   try {
-    if (typeof Buffer !== "undefined") {
-      return new Uint8Array(Buffer.from(s, "base64url"));
+    let b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+    const pad = b64.length % 4;
+    if (pad) b64 += "=".repeat(4 - pad);
+    const binary = atob(b64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      out[i] = binary.charCodeAt(i);
     }
-    const pad = s.length % 4 === 0 ? s : s + "=".repeat(4 - (s.length % 4));
-    let bin = "";
-    for (let i = 0; i < pad.length; i += 4) {
-      const n =
-        (BASE64URL.indexOf(pad[i]!) << 18) |
-        (BASE64URL.indexOf(pad[i + 1]!) << 12) |
-        ((pad[i + 2] === "=" ? 0 : BASE64URL.indexOf(pad[i + 2]!)) << 6) |
-        (pad[i + 3] === "=" ? 0 : BASE64URL.indexOf(pad[i + 3]!));
-      if (BASE64URL.indexOf(pad[i]!) < 0 || BASE64URL.indexOf(pad[i + 1]!) < 0) {
-        return null;
-      }
-      bin += String.fromCharCode((n >> 16) & 255);
-      if (pad[i + 2] !== "=") bin += String.fromCharCode((n >> 8) & 255);
-      if (pad[i + 3] !== "=") bin += String.fromCharCode(n & 255);
-    }
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
     return out;
   } catch {
     return null;
@@ -74,14 +54,22 @@ function readVarint(bytes: Uint8Array, pos: { i: number }): number | null {
   return null;
 }
 
-function normalizeKeys(keys: number[]): number[] {
-  const valid = keys.filter((k) => Number.isInteger(k) && k >= 0);
-  return [...new Set(valid)].sort((a, b) => a - b);
+function assertIntegerKeys(keys: number[]): number[] {
+  const out: number[] = [];
+  for (const k of keys) {
+    if (!Number.isInteger(k) || k < 0) {
+      throw new Error(
+        `packChampionKeys: chaque clé doit être un entier ≥ 0 (reçu ${String(k)})`,
+      );
+    }
+    out.push(k);
+  }
+  return [...new Set(out)].sort((a, b) => a - b);
 }
 
 /** Sorts, delta-encodes with varints, then base64url. */
 export function packChampionKeys(keys: number[]): string {
-  const sorted = normalizeKeys(keys);
+  const sorted = assertIntegerKeys(keys);
   if (sorted.length === 0) return "";
 
   const bytes: number[] = [];

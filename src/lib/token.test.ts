@@ -222,4 +222,19 @@ describe("encodeRoom / decodeRoom", () => {
     expect(formatMissingChampionsMessage(["Yasuo", "Ahri"])).toMatch(/Ahri/);
     expect(formatMissingChampionsMessage([])).toBe("");
   });
+
+  it("encode/decode sans Buffer global (chemin navigateur)", () => {
+    const prev = globalThis.Buffer;
+    // @ts-expect-error — browser bundle
+    delete globalThis.Buffer;
+    try {
+      const token = encodeOfflineDraft(sampleState());
+      const decoded = decodeRoom(token, roster);
+      expect(decoded.ok).toBe(true);
+      if (!decoded.ok) return;
+      expect(decoded.state.picks.blue[0]?.id).toBe("Ahri");
+    } finally {
+      globalThis.Buffer = prev;
+    }
+  });
 });

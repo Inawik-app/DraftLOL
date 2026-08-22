@@ -7,6 +7,7 @@ import { FailurePanel } from "@/components/FailurePanel";
 import { OfflineDraftPanel } from "@/components/OfflineDraftPanel";
 import { PlayersPanel } from "@/components/PlayersPanel";
 import { ProfileSelector } from "@/components/ProfileSelector";
+import { RoomConnector } from "@/components/RoomConnector";
 import { RoomLinkPanel } from "@/components/RoomLinkPanel";
 import { StatusNotice } from "@/components/StatusNotice";
 import { PROFILES } from "@/data/profiles";
@@ -33,6 +34,7 @@ import {
   extractToken,
   formatMissingChampionsMessage,
   generateRoomId,
+  persistSessionRoomRid,
   replaceLocationRid,
 } from "@/lib/token";
 import type { Champion, Pick, Player } from "@/lib/types";
@@ -194,6 +196,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!roomId || !restoredRef.current) return;
+    persistSessionRoomRid(roomId);
     if (lastWrittenRidRef.current === roomId) return;
     lastWrittenRidRef.current = roomId;
     replaceLocationRid(roomId);
@@ -276,6 +279,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-[1240px] px-3.5 pb-14 pt-3.5">
+      <RoomConnector />
       <AppNav />
       {showStorageNotice ? (
         <StatusNotice

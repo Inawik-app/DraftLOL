@@ -2,34 +2,6 @@ import { championIdFromKey, championKeyFromId } from "@/lib/ddragon";
 import type { TierSeedLists } from "@/lib/tierSeed";
 import type { Champion, TierLabel } from "@/lib/types";
 
-export type RoleFilterId = "all" | "top" | "jgl" | "mid" | "adc" | "sup";
-
-export const ROLE_FILTER_LABEL: Record<RoleFilterId, string> = {
-  all: "Tous",
-  top: "Top",
-  jgl: "Jungle",
-  mid: "Mid",
-  adc: "ADC",
-  sup: "Support",
-};
-
-const ROLE_RIOT_TAGS: Record<Exclude<RoleFilterId, "all">, readonly string[]> = {
-  top: ["Fighter", "Tank"],
-  jgl: ["Fighter", "Assassin"],
-  mid: ["Mage", "Assassin"],
-  adc: ["Marksman"],
-  sup: ["Support"],
-};
-
-export function championMatchesRoleFilter(
-  champion: Champion,
-  role: RoleFilterId,
-): boolean {
-  if (role === "all") return true;
-  const wanted = ROLE_RIOT_TAGS[role];
-  return champion.riotTags.some((tag) => wanted.includes(tag));
-}
-
 export type TierAssignments = Record<number, TierLabel>;
 
 export function emptyTierLists(): TierSeedLists {

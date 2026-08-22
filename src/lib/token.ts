@@ -280,6 +280,32 @@ export function generateRoomId(): string {
   return crypto.randomUUID();
 }
 
+const SESSION_ROOM_RID_KEY = "draftboard.sessionRoomRid.v1";
+
+/** Persists the active room id for nav back from /tiers (hash lives on / only). */
+export function persistSessionRoomRid(rid: string): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    sessionStorage.setItem(SESSION_ROOM_RID_KEY, rid);
+  } catch {
+    // ignore quota / privacy mode
+  }
+}
+
+export function loadSessionRoomRid(): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const rid = sessionStorage.getItem(SESSION_ROOM_RID_KEY);
+    return rid && isValidRoomId(rid) ? rid : null;
+  } catch {
+    return null;
+  }
+}
+
+export function formatDraftPathWithRid(rid: string): string {
+  return `/${formatRoomHash(rid)}`;
+}
+
 function parseCompactPayload(
   token: string,
 ): { ok: true; compact: CompactPayload } | { ok: false; reason: string } {

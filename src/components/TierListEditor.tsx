@@ -5,11 +5,8 @@ import { championIconUrl } from "@/lib/ddragon";
 import { subsequenceScore } from "@/lib/search";
 import {
   assignmentsToLists,
-  championMatchesRoleFilter,
   listsToAssignments,
   nextTierLabel,
-  ROLE_FILTER_LABEL,
-  type RoleFilterId,
   type TierAssignments,
 } from "@/lib/tierList";
 import {
@@ -24,6 +21,9 @@ import { isLocalStorageAvailable } from "@/lib/storage";
 import type { Champion, TierLabel } from "@/lib/types";
 
 const TIERS: TierLabel[] = ["S", "A", "B"];
+/** Two rows of champion chips — fixed slot so typing never shifts layout. */
+const SEARCH_RESULTS_HEIGHT = "4.75rem";
+const TIER_COLUMN_LIST_HEIGHT = "min(480px, 42vh)";
 
 type Props = {
   version: string;
@@ -33,7 +33,6 @@ type Props = {
 export function TierListEditor({ version, champions }: Props) {
   const [assignments, setAssignments] = useState<TierAssignments>({});
   const [query, setQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<RoleFilterId>("all");
   const [importIn, setImportIn] = useState("");
   const [importError, setImportError] = useState("");
   const [storageNotice, setStorageNotice] = useState(false);
@@ -72,13 +71,12 @@ export function TierListEditor({ version, champions }: Props) {
     if (!query.trim()) return [];
     return champions
       .filter((c) => !assignedKeys.has(c.key))
-      .filter((c) => championMatchesRoleFilter(c, roleFilter))
       .map((c) => ({ c, s: subsequenceScore(query, c.name) }))
       .filter((x) => x.s !== null)
       .sort((a, b) => (b.s as number) - (a.s as number))
       .slice(0, 12)
       .map((x) => x.c);
-  }, [query, champions, assignedKeys, roleFilter]);
+  }, [query, champions, assignedKeys]);
 
   const columns = useMemo(() => {
     const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [] };
@@ -174,23 +172,6 @@ export function TierListEditor({ version, champions }: Props) {
           Tape les lettres dans l&apos;ordre — kss, mrgn, twf… Clique pour
           ajouter en tier S.
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(Object.keys(ROLE_FILTER_LABEL) as RoleFilterId[]).map((role) => (
-            <button
-              key={role}
-              type="button"
-              aria-pressed={roleFilter === role}
-              onClick={() => setRoleFilter(role)}
-              className={`font-cond border px-1.5 py-0.5 text-[11px] tracking-[0.08em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
-                roleFilter === role
-                  ? "border-gold bg-gold text-[#0B0F16]"
-                  : "border-line bg-panel2 text-txt hover:border-gold hover:text-gold"
-              }`}
-            >
-              {ROLE_FILTER_LABEL[role]}
-            </button>
-          ))}
-        </div>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -198,31 +179,42 @@ export function TierListEditor({ version, champions }: Props) {
           className="mt-2 w-full border border-line bg-ink px-2 py-1.5 text-sm text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
           aria-label="Rechercher un champion"
         />
-        {searchResults.length > 0 ? (
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {searchResults.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => addChampion(c, "S")}
-                  className="flex items-center gap-1.5 border border-line bg-panel2 px-1.5 py-1 text-left text-txt hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={championIconUrl(version, c.id)}
-                    alt=""
-                    width={24}
-                    height={24}
-                    className="h-6 w-6"
-                  />
-                  <span className="font-cond text-[12px]">{c.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : query.trim() ? (
-          <p className="mt-2 text-[11px] text-dim">Aucun champion trouvé.</p>
-        ) : null}
+        <div
+          className="mt-2 overflow-y-auto"
+          style={{ height: SEARCH_RESULTS_HEIGHT }}
+          aria-live="polite"
+          aria-hidden={!query.trim()}
+        >
+          {query.trim() ? (
+            searchResults.length > 0 ? (
+              <ul className="flex flex-wrap content-start gap-1.5">
+                {searchResults.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => addChampion(c, "S")}
+                      className="flex items-center gap-1.5 border border-line bg-panel2 px-1.5 py-1 text-left text-txt hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={championIconUrl(version, c.id)}
+                        alt=""
+                        width={24}
+                        height={24}
+                        className="h-6 w-6"
+                      />
+                      <span className="font-cond text-[12px]">{c.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-[11px] text-dim">Aucun champion trouvé.</p>
+            )
+          ) : (
+            <span className="sr-only">Zone résultats vide</span>
+          )}
+        </div>
       </section>
 
       <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-3">
@@ -230,16 +222,19 @@ export function TierListEditor({ version, champions }: Props) {
           <section
             key={tier}
             aria-label={`Colonne tier ${tier}`}
-            className="border border-line bg-panel p-2.5"
+            className="flex min-w-0 flex-col border border-line bg-panel p-2.5"
           >
-            <div className="mb-2 flex items-baseline justify-between">
+            <div className="mb-2 flex shrink-0 items-baseline justify-between">
               <h3 className="font-cond text-lg text-gold">Tier {tier}</h3>
               <span className="font-cond text-[11px] tracking-[0.1em] text-dim">
                 {columns[tier].length} champion
                 {columns[tier].length === 1 ? "" : "s"}
               </span>
             </div>
-            <ul className="space-y-1">
+            <ul
+              className="min-h-0 flex-1 space-y-1 overflow-y-auto"
+              style={{ height: TIER_COLUMN_LIST_HEIGHT }}
+            >
               {columns[tier].map((c) => (
                 <li
                   key={c.id}
