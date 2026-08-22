@@ -106,6 +106,21 @@ export function DraftBoard({
     return out;
   }, [picks.blue, blueSlots, profile, players, available]);
 
+  const slotTier = useMemo(() => {
+    if (
+      !activeSlot ||
+      activeSlot.kind !== "pick" ||
+      activeSlot.team !== "blue"
+    ) {
+      return undefined;
+    }
+    const playerTiers = players[activeSlot.index]?.tiers;
+    if (!playerTiers || Object.keys(playerTiers).length === 0) {
+      return undefined;
+    }
+    return (champId: string) => playerTiers[champId] ?? null;
+  }, [activeSlot, players]);
+
   const analysisHover = useMemo((): HoverFocus | null => {
     if (slotHover) return slotHover;
     if (!gridHoverChamp) return null;
@@ -207,6 +222,7 @@ export function DraftBoard({
           used={used}
           locked={locked}
           showHint={gridHint}
+          slotTier={slotTier}
           onSelect={placeChampion}
           onHover={setGridHoverChamp}
         />

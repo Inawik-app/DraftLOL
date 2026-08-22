@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { encodeTierSeed, decodeTierSeed } from "./tierSeed";
 
 describe("encodeTierSeed / decodeTierSeed", () => {
-  it("aller-retour sur trois listes", () => {
-    const lists = { S: [266, 103], A: [51, 777], B: [12] };
+  it("aller-retour sur quatre listes", () => {
+    const lists = { S: [266, 103], A: [51, 777], B: [12], D: [222] };
     const seed = encodeTierSeed(lists);
     expect(seed.startsWith("TL1.")).toBe(true);
     const decoded = decodeTierSeed(seed);
@@ -13,16 +13,24 @@ describe("encodeTierSeed / decodeTierSeed", () => {
       S: [103, 266],
       A: [51, 777],
       B: [12],
+      D: [222],
     });
   });
 
+  it("compatibilité seeds TL1 à trois listes (sans D)", () => {
+    const decoded = decodeTierSeed("TL1.||");
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.lists).toEqual({ S: [], A: [], B: [], D: [] });
+  });
+
   it("listes vides", () => {
-    const seed = encodeTierSeed({ S: [], A: [], B: [] });
-    expect(seed).toBe("TL1.||");
+    const seed = encodeTierSeed({ S: [], A: [], B: [], D: [] });
+    expect(seed).toBe("TL1.|||");
     const decoded = decodeTierSeed(seed);
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) return;
-    expect(decoded.lists).toEqual({ S: [], A: [], B: [] });
+    expect(decoded.lists).toEqual({ S: [], A: [], B: [], D: [] });
   });
 
   it("moins de 60 caractères pour 30 champions", () => {
@@ -31,6 +39,7 @@ describe("encodeTierSeed / decodeTierSeed", () => {
       S: keys.slice(0, 10),
       A: keys.slice(10, 20),
       B: keys.slice(20, 30),
+      D: [],
     });
     expect(seed.length).toBeLessThan(60);
     const decoded = decodeTierSeed(seed);

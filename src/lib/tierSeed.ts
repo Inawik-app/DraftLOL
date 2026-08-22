@@ -8,13 +8,19 @@ export type TierSeedLists = {
   S: number[];
   A: number[];
   B: number[];
+  D: number[];
 };
+
+export function emptyTierSeedLists(): TierSeedLists {
+  return { S: [], A: [], B: [], D: [] };
+}
 
 export function encodeTierSeed(lists: TierSeedLists): string {
   const s = packChampionKeys(lists.S);
   const a = packChampionKeys(lists.A);
   const b = packChampionKeys(lists.B);
-  return `${TIER_SEED_PREFIX}${s}${TIER_SEPARATOR}${a}${TIER_SEPARATOR}${b}`;
+  const d = packChampionKeys(lists.D);
+  return `${TIER_SEED_PREFIX}${s}${TIER_SEPARATOR}${a}${TIER_SEPARATOR}${b}${TIER_SEPARATOR}${d}`;
 }
 
 export function decodeTierSeed(
@@ -46,19 +52,20 @@ export function decodeTierSeed(
     }
 
     const parts = payload.split(TIER_SEPARATOR);
-    if (parts.length !== 3) {
+    if (parts.length !== 3 && parts.length !== 4) {
       return {
         ok: false,
         reason:
-          "Structure invalide : le seed TL1 doit contenir exactement trois listes (S, A, B) séparées par |.",
+          "Structure invalide : le seed TL1 doit contenir trois ou quatre listes (S, A, B[, D]) séparées par |.",
       };
     }
 
-    const [sPart, aPart, bPart] = parts;
+    const [sPart, aPart, bPart, dPart = ""] = parts;
     if (
       sPart.includes(TIER_SEPARATOR) ||
       aPart.includes(TIER_SEPARATOR) ||
-      bPart.includes(TIER_SEPARATOR)
+      bPart.includes(TIER_SEPARATOR) ||
+      dPart.includes(TIER_SEPARATOR)
     ) {
       return {
         ok: false,
@@ -69,11 +76,13 @@ export function decodeTierSeed(
     const S = unpackChampionKeys(sPart);
     const A = unpackChampionKeys(aPart);
     const B = unpackChampionKeys(bPart);
+    const D = dPart.length > 0 ? unpackChampionKeys(dPart) : [];
 
     for (const [label, part, keys] of [
       ["S", sPart, S],
       ["A", aPart, A],
       ["B", bPart, B],
+      ["D", dPart, D],
     ] as const) {
       if (part.length > 0 && keys.length === 0) {
         return {
@@ -83,7 +92,7 @@ export function decodeTierSeed(
       }
     }
 
-    return { ok: true, lists: { S, A, B } };
+    return { ok: true, lists: { S, A, B, D } };
   } catch {
     return {
       ok: false,

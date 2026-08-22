@@ -8,10 +8,11 @@ import { tierListsToPlayerTiers } from "@/lib/tierList";
 import { decodeTierSeed } from "@/lib/tierSeed";
 import { extractToken } from "@/lib/token";
 import type { Player, TierLabel } from "@/lib/types";
+import { TIER_LABELS } from "@/lib/types";
 import { RoleProfileRow } from "@/components/RoleProfileRow";
 import { ROLE_LABELS } from "@/state/useDraft";
 
-const TIER_ORDER: TierLabel[] = ["S", "A", "B"];
+const TIER_ORDER = TIER_LABELS;
 
 type Props = {
   version: string;
@@ -112,7 +113,7 @@ function PlayerTierCard({
   );
 
   const poolCounts = useMemo(() => {
-    const counts = { S: 0, A: 0, B: 0 };
+    const counts = { S: 0, A: 0, B: 0, D: 0 };
     for (const [, tier] of pool) counts[tier as TierLabel] += 1;
     return counts;
   }, [pool]);
@@ -195,7 +196,8 @@ function PlayerTierCard({
         ) : (
           <>
             <p className="font-cond mb-1 text-[10px] tracking-[0.08em] text-dim">
-              S {poolCounts.S} · A {poolCounts.A} · B {poolCounts.B}
+              S {poolCounts.S} · A {poolCounts.A} · B {poolCounts.B} · D{" "}
+              {poolCounts.D}
             </p>
             <div className="flex flex-wrap gap-1">
               {pool.map(([id, tier]) => (

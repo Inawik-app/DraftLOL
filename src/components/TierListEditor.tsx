@@ -36,9 +36,10 @@ import {
 import { extractToken } from "@/lib/token";
 import { isLocalStorageAvailable } from "@/lib/storage";
 import type { Champion, TierLabel } from "@/lib/types";
+import { TIER_LABELS } from "@/lib/types";
 import { RoleTags } from "@/components/RoleTags";
 
-const TIERS: TierLabel[] = ["S", "A", "B"];
+const TIERS = TIER_LABELS;
 
 const ROLE_FILTERS: { id: DraftRole | null; label: string }[] = [
   { id: null, label: "ALL" },
@@ -111,7 +112,7 @@ export function TierListEditor({ version, champions }: Props) {
   }, [query, champions, assignedKeys, roleFilter]);
 
   const columns = useMemo(() => {
-    const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [] };
+    const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [], D: [] };
     for (const tier of TIERS) {
       out[tier] = lists[tier]
         .map((key) => championsByKey.get(key))
@@ -304,7 +305,7 @@ export function TierListEditor({ version, champions }: Props) {
       <div
         className="grid shrink-0"
         style={{
-          gridTemplateColumns: `repeat(3, ${TIER_COLUMN_WIDTH_PX}px)`,
+          gridTemplateColumns: `repeat(${TIER_LABELS.length}, ${TIER_COLUMN_WIDTH_PX}px)`,
           gap: `${TIER_GRID_GAP_PX}px`,
         }}
       >

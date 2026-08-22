@@ -1,11 +1,12 @@
 import { championIdFromKey, championKeyFromId } from "@/lib/ddragon";
 import type { TierSeedLists } from "@/lib/tierSeed";
+import { emptyTierSeedLists } from "@/lib/tierSeed";
 import type { Champion, TierLabel } from "@/lib/types";
 
 export type TierAssignments = Record<number, TierLabel>;
 
 export function emptyTierLists(): TierSeedLists {
-  return { S: [], A: [], B: [] };
+  return emptyTierSeedLists();
 }
 
 export function listsToAssignments(lists: TierSeedLists): TierAssignments {
@@ -13,6 +14,7 @@ export function listsToAssignments(lists: TierSeedLists): TierAssignments {
   for (const key of lists.S) out[key] = "S";
   for (const key of lists.A) out[key] = "A";
   for (const key of lists.B) out[key] = "B";
+  for (const key of lists.D) out[key] = "D";
   return out;
 }
 
@@ -23,9 +25,9 @@ export function assignmentsToLists(assignments: TierAssignments): TierSeedLists 
     if (!Number.isInteger(key) || key < 0) continue;
     lists[tier].push(key);
   }
-  lists.S.sort((a, b) => a - b);
-  lists.A.sort((a, b) => a - b);
-  lists.B.sort((a, b) => a - b);
+  for (const tier of ["S", "A", "B", "D"] as const) {
+    lists[tier].sort((a, b) => a - b);
+  }
   return lists;
 }
 
@@ -43,6 +45,10 @@ export function tierListsToPlayerTiers(lists: TierSeedLists): Record<string, Tie
   for (const key of lists.B) {
     const id = championIdFromKey(key);
     if (id) tiers[id] = "B";
+  }
+  for (const key of lists.D) {
+    const id = championIdFromKey(key);
+    if (id) tiers[id] = "D";
   }
   return tiers;
 }
@@ -62,6 +68,7 @@ export function playerTiersToTierLists(
 export function nextTierLabel(tier: TierLabel): TierLabel | null {
   if (tier === "S") return "A";
   if (tier === "A") return "B";
+  if (tier === "B") return "D";
   return null;
 }
 
@@ -77,5 +84,6 @@ export function championsInLists(
     S: pick(lists.S),
     A: pick(lists.A),
     B: pick(lists.B),
+    D: pick(lists.D),
   };
 }

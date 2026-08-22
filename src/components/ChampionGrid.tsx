@@ -16,7 +16,7 @@ import {
   ROLE_FILTER_GAP_PX,
 } from "@/lib/draftLayout";
 import { subsequenceScore } from "@/lib/search";
-import type { Champion } from "@/lib/types";
+import type { Champion, TierLabel } from "@/lib/types";
 
 type Props = {
   version: string;
@@ -24,6 +24,7 @@ type Props = {
   used: Set<string>;
   locked: Map<string, number>;
   showHint: boolean;
+  slotTier?: (champId: string) => TierLabel | null;
   onSelect: (champ: Champion) => void;
   onHover: (champ: Champion | null) => void;
 };
@@ -36,6 +37,7 @@ export function ChampionGrid({
   used,
   locked,
   showHint,
+  slotTier,
   onSelect,
   onHover,
 }: Props) {
@@ -139,6 +141,7 @@ export function ChampionGrid({
               subsequenceScore(query, c.name) !== null;
             const lockGame = locked.get(c.id);
             const disabled = used.has(c.id) || lockGame !== undefined;
+            const tier = slotTier?.(c.id) ?? null;
 
             return (
               <button
@@ -149,11 +152,13 @@ export function ChampionGrid({
                     ? `${c.name} — verrouillé (Game ${lockGame})`
                     : disabled
                       ? `${c.name} — indisponible`
-                      : c.name
+                      : tier
+                        ? `${c.name} — tier ${tier}`
+                        : c.name
                 }
                 aria-label={c.name}
                 disabled={disabled}
-                className={`overflow-hidden border bg-panel2 p-0 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold ${
+                className={`relative overflow-hidden border bg-panel2 p-0 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold ${
                   visible ? "" : "invisible pointer-events-none"
                 } ${
                   disabled
@@ -176,6 +181,14 @@ export function ChampionGrid({
                   alt=""
                   className="block h-full w-full"
                 />
+                {tier ? (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute right-0 top-0 border-b border-l border-line bg-ink/90 px-0.5 font-cond text-[9px] leading-none text-gold"
+                  >
+                    {tier}
+                  </span>
+                ) : null}
               </button>
             );
           })}

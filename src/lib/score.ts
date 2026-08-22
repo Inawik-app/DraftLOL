@@ -13,6 +13,7 @@ const AFFINITY_WEIGHT: Record<TierLabel | "null", number> = {
   S: 1,
   A: 0.7,
   B: 0.4,
+  D: 0.2,
   null: 0,
 };
 

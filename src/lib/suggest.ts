@@ -16,6 +16,7 @@ const AFFINITY_WEIGHT: Record<TierLabel, number> = {
   S: 1,
   A: 0.7,
   B: 0.4,
+  D: 0.2,
 };
 
 export type RoleSuggestions = {

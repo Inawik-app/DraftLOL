@@ -19,6 +19,7 @@ export function loadTierListFromStorage(): TierSeedLists | null {
       S: Array.isArray(data.lists.S) ? data.lists.S : [],
       A: Array.isArray(data.lists.A) ? data.lists.A : [],
       B: Array.isArray(data.lists.B) ? data.lists.B : [],
+      D: Array.isArray(data.lists.D) ? data.lists.D : [],
     };
   } catch {
     return null;
