@@ -47,7 +47,18 @@ export function ChampionGrid({
     [champions],
   );
 
-  const rowCount = Math.ceil(rosterOrder.length / CHAMPION_GRID_COLS);
+  /** Full roster with invisible gaps (search only). Role filter compacts matching champs. */
+  const compactRoster = useMemo(() => {
+    if (roleFilter === "all") return null;
+    return rosterOrder.filter((c) => {
+      if (!championPlaysRole(c.id, roleFilter)) return false;
+      if (query.trim() && subsequenceScore(query, c.name) === null) return false;
+      return true;
+    });
+  }, [rosterOrder, roleFilter, query]);
+
+  const championsToRender = compactRoster ?? rosterOrder;
+  const rowCount = Math.ceil(championsToRender.length / CHAMPION_GRID_COLS);
 
   return (
     <section
@@ -121,12 +132,11 @@ export function ChampionGrid({
           }}
           data-testid="champion-grid"
         >
-          {rosterOrder.map((c) => {
-            const matchesSearch =
-              !query.trim() || subsequenceScore(query, c.name) !== null;
-            const matchesRole =
-              roleFilter === "all" || championPlaysRole(c.id, roleFilter);
-            const visible = matchesSearch && matchesRole;
+          {championsToRender.map((c) => {
+            const visible =
+              compactRoster !== null ||
+              !query.trim() ||
+              subsequenceScore(query, c.name) !== null;
             const lockGame = locked.get(c.id);
             const disabled = used.has(c.id) || lockGame !== undefined;
 
