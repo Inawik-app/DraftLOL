@@ -8,7 +8,14 @@ import { TokenPanel } from "@/components/TokenPanel";
 import { PROFILES } from "@/data/profiles";
 import { loadChampions } from "@/lib/ddragon";
 import { scoreComp } from "@/lib/score";
-import { decodeRoom, encodeRoom, deriveRoomName, generateRoomId, hashRoomId, type RoomState } from "@/lib/token";
+import {
+  decodeRoom,
+  encodeRoom,
+  deriveRoomNameFromRid,
+  generateRoomId,
+  replaceLocationHash,
+  type RoomState,
+} from "@/lib/token";
 import { connectRoom, disconnectRoom, setChampionCatalog, subscribeRoomStatus } from "@/lib/room";
 import type { Champion, Pick, Player } from "@/lib/types";
 import { useDraft } from "@/state/useDraft";
@@ -33,15 +40,24 @@ function toRoomState(
     bans: RoomState["bans"];
     players: Player[];
   },
-  rid?: string,
+  rid: string,
 ): RoomState {
   return {
     profileKey: draft.profileKey,
     picks: draft.picks,
     bans: draft.bans,
     players: draft.players,
-    ...(rid ? { rid } : {}),
+    rid,
   };
+}
+
+function roomStatusLabel(
+  signalingConnected: boolean,
+  peerCount: number,
+): string {
+  if (!signalingConnected) return "Hors ligne";
+  if (peerCount === 0) return "Seul dans la salle";
+  return `${peerCount} pair${peerCount === 1 ? "" : "s"} connecté${peerCount === 1 ? "" : "s"}`;
 }
 
 export default function Home() {
@@ -58,6 +74,7 @@ export default function Home() {
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
   const hashTimer = useRef<number | null>(null);
+  const lastWrittenRidRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,49 +110,82 @@ export default function Home() {
     if (!champions.length || restoredRef.current) return;
     restoredRef.current = true;
     const raw = window.location.hash.replace(/^#/, "");
-    if (!raw) return;
+    if (!raw) {
+      setRoomId(generateRoomId());
+      return;
+    }
     const result = decodeRoom(decodeURIComponent(raw), champions);
     if (result.ok) {
-      setRoomId(result.state.rid ?? null);
+      setRoomId(result.state.rid ?? generateRoomId());
       draft.loadRoom(result.state);
+    } else {
+      setRoomId(generateRoomId());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, [champions]);
 
   const token = useMemo(() => {
-    if (!champions.length) return "";
-    return encodeRoom(toRoomState(draft, roomId ?? undefined));
+    if (!champions.length || !roomId) return "";
+    return encodeRoom(toRoomState(draft, roomId));
   }, [champions.length, draft.profileKey, draft.picks, draft.bans, draft.players, roomId]);
 
-  const roomName = useMemo(() => (token ? deriveRoomName(token) : null), [token]);
+  const roomName = useMemo(
+    () => (roomId ? deriveRoomNameFromRid(roomId) : null),
+    [roomId],
+  );
 
   useEffect(() => {
+    console.log("[room] page mount/update", {
+      roomId,
+      roomName,
+      tokenHasRid: roomId != null,
+      hash: typeof window !== "undefined" ? window.location.hash.slice(0, 40) + "…" : "",
+    });
+  }, [roomId, roomName]);
+
+  useEffect(() => {
+    console.log("[room] connect effect run", {
+      deps: { roomName },
+      action: roomName ? "connectRoom" : "disconnectRoom",
+    });
     if (!roomName) {
       disconnectRoom();
-      return () => disconnectRoom();
+      return () => {
+        console.log("[room] connect effect cleanup (no roomName)");
+        disconnectRoom();
+      };
     }
     connectRoom(roomName);
-    return () => disconnectRoom();
+    return () => {
+      console.log("[room] connect effect cleanup", { roomName });
+      disconnectRoom();
+    };
   }, [roomName]);
 
-  // Sync hash, throttle 500 ms, sans entrée d'historique (après restauration)
+  // rid (ou changement de salle) : hash immédiat, sans throttle
   useEffect(() => {
-    if (!token || !restoredRef.current) return;
+    if (!token || !roomId) return;
+    if (lastWrittenRidRef.current === roomId) return;
+    lastWrittenRidRef.current = roomId;
+    console.log("[room] hash immediate (rid)", { roomId });
+    replaceLocationHash(token);
+  }, [token, roomId]);
+
+  // Reste du payload : hash throttle 500 ms
+  useEffect(() => {
+    if (!token || !restoredRef.current || !roomId) return;
     if (hashTimer.current != null) window.clearTimeout(hashTimer.current);
     hashTimer.current = window.setTimeout(() => {
       const next = `#${token}`;
       if (window.location.hash !== next) {
-        window.history.replaceState(
-          null,
-          "",
-          `${window.location.pathname}${window.location.search}${next}`,
-        );
+        console.log("[room] hash throttled (draft payload)");
+        replaceLocationHash(token);
       }
     }, 500);
     return () => {
       if (hashTimer.current != null) window.clearTimeout(hashTimer.current);
     };
-  }, [token]);
+  }, [token, roomId]);
 
   const blueEval = useMemo(
     () => scoreComp(toScorePicks(draft.picks.blue, draft.players), profile),
@@ -150,14 +200,19 @@ export default function Home() {
   const handleLoadToken = (raw: string) => {
     const result = decodeRoom(raw, champions);
     if (!result.ok) return result;
-    setRoomId(result.state.rid ?? null);
+    if (result.state.rid) {
+      setRoomId(result.state.rid);
+    }
     draft.loadRoom(result.state);
     return { ok: true as const };
   };
 
   const handleNewDraft = () => {
-    setRoomId(generateRoomId());
     draft.reset();
+  };
+
+  const handleLeaveRoom = () => {
+    setRoomId(generateRoomId());
   };
 
   if (error) {
@@ -192,26 +247,31 @@ export default function Home() {
         <div className="flex items-end gap-2.5">
           {roomId ? (
             <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
-              {!roomStatus.signalingConnected
-                ? "Hors ligne"
-                : `${roomStatus.peerCount} pair${roomStatus.peerCount === 1 ? "" : "s"}`}
+              {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
             </p>
           ) : null}
           <div className="flex gap-1.5">
-          <button
-            type="button"
-            onClick={() => setPlayersOpen((o) => !o)}
-            className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          >
-            Joueurs
-          </button>
-          <button
-            type="button"
-            onClick={handleNewDraft}
-            className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          >
-            Nouvelle draft
-          </button>
+            <button
+              type="button"
+              onClick={() => setPlayersOpen((o) => !o)}
+              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Joueurs
+            </button>
+            <button
+              type="button"
+              onClick={handleLeaveRoom}
+              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Quitter la salle
+            </button>
+            <button
+              type="button"
+              onClick={handleNewDraft}
+              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Nouvelle draft
+            </button>
           </div>
         </div>
       </header>

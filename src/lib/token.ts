@@ -210,6 +210,21 @@ export function deriveRoomName(token: string): string | null {
   return hashRoomId(rid.trim());
 }
 
+/** WebRTC room name from a stable session rid (same input as deriveRoomName for tokens carrying `i`). */
+export function deriveRoomNameFromRid(rid: string): string {
+  return hashRoomId(rid.trim());
+}
+
+export function replaceLocationHash(token: string): void {
+  const next = `#${token}`;
+  if (window.location.hash === next) return;
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}${next}`,
+  );
+}
+
 export function encodeRoom(state: RoomState): string {
   const compact: CompactPayload = {
     p: state.profileKey,

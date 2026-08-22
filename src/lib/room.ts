@@ -80,6 +80,37 @@ function emitStatus() {
   }
 }
 
+let debugMapObserver: ((event: Y.YMapEvent<unknown>, tr: Y.Transaction) => void) | null = null;
+
+function detachDebugMapObserver() {
+  if (draftMap && debugMapObserver) {
+    console.log("[room] debug observer detach", {
+      roomName: activeRoomName,
+      mapClientID: ydoc?.clientID,
+    });
+    draftMap.unobserve(debugMapObserver);
+    debugMapObserver = null;
+  }
+}
+
+function attachDebugMapObserver() {
+  if (!draftMap) return;
+  detachDebugMapObserver();
+  debugMapObserver = (event, tr) => {
+    console.log("[room] observer", {
+      roomName: activeRoomName,
+      origin: tr.origin,
+      keysChanged: [...event.keysChanged],
+      mapClientID: ydoc?.clientID,
+    });
+  };
+  console.log("[room] debug observer attach", {
+    roomName: activeRoomName,
+    mapClientID: ydoc?.clientID,
+  });
+  draftMap.observe(debugMapObserver);
+}
+
 function emitDraftMap() {
   if (!draftMap) return;
   for (const listener of draftMapListeners) {
@@ -93,25 +124,31 @@ function updatePeerCount(webrtcPeers: string[], bcPeers: string[]) {
 }
 
 function onProviderStatus(event: { connected: boolean }) {
+  console.log("[room] status", event);
   status = { ...status, signalingConnected: event.connected };
   emitStatus();
 }
 
 function onProviderPeers(event: {
+  added: string[];
+  removed: string[];
   webrtcPeers: string[];
   bcPeers: string[];
 }) {
+  console.log("[room] peers", event);
   updatePeerCount(event.webrtcPeers, event.bcPeers);
 }
 
 function teardownProvider() {
   if (provider) {
+    console.log("[room] provider destroy", { roomName: activeRoomName });
     provider.off("status", onProviderStatus);
     provider.off("peers", onProviderPeers);
     provider.destroy();
     provider = null;
   }
   if (ydoc) {
+    console.log("[room] ydoc destroy", { roomName: activeRoomName, clientID: ydoc.clientID });
     ydoc.destroy();
     ydoc = null;
   }
@@ -160,7 +197,20 @@ export function hasSharedDraftKeys(map: Y.Map<unknown>): boolean {
  * connectRoom never calls this.
  */
 export function writeSharedDraft(payload: SharedDraftPayload): void {
-  if (!ydoc || !draftMap) return;
+  if (!ydoc || !draftMap) {
+    console.log("[room] write SKIP (no map)", {
+      hasYdoc: !!ydoc,
+      hasMap: !!draftMap,
+      keys: ["profileKey", "picks", "bans"],
+    });
+    return;
+  }
+  console.log("[room] write", {
+    roomName: activeRoomName,
+    origin: LOCAL_ORIGIN,
+    keys: ["profileKey", "picks", "bans"],
+    mapClientID: ydoc.clientID,
+  });
   ydoc.transact(() => {
     draftMap!.set("profileKey", payload.profileKey);
     draftMap!.set("picks", payload.picks);
@@ -180,7 +230,10 @@ export function isRoomConnected(): boolean {
  * Opens a WebRTC room. Never writes to the Y.Map — remote state is read-only on join.
  */
 export function connectRoom(roomName: string): void {
-  if (activeRoomName === roomName && provider) return;
+  if (activeRoomName === roomName && provider) {
+    console.log("[room] connect SKIP (already connected)", { roomName });
+    return;
+  }
 
   disconnectRoom();
 
@@ -188,12 +241,20 @@ export function connectRoom(roomName: string): void {
   ydoc = new Y.Doc();
   draftMap = ydoc.getMap("draft");
 
+  console.log("[room] provider create", {
+    roomName,
+    clientID: ydoc.clientID,
+    signaling: DEFAULT_SIGNALING_URLS,
+  });
+
   provider = new WebrtcProvider(roomName, ydoc, {
     signaling: [...DEFAULT_SIGNALING_URLS],
   });
 
   provider.on("status", onProviderStatus);
   provider.on("peers", onProviderPeers);
+
+  attachDebugMapObserver();
 
   status = {
     signalingConnected: provider.connected,
@@ -204,6 +265,7 @@ export function connectRoom(roomName: string): void {
 }
 
 export function disconnectRoom(): void {
+  detachDebugMapObserver();
   teardownProvider();
 }
 
@@ -214,9 +276,19 @@ export function subscribeRoomStatus(listener: (s: RoomStatus) => void): () => vo
 }
 
 export function subscribeDraftMap(listener: (map: Y.Map<unknown>) => void): () => void {
+  console.log("[room] subscribeDraftMap attach");
   draftMapListeners.add(listener);
-  if (draftMap) listener(draftMap);
-  return () => draftMapListeners.delete(listener);
+  if (draftMap) {
+    console.log("[room] subscribeDraftMap immediate map", {
+      roomName: activeRoomName,
+      mapClientID: ydoc?.clientID,
+    });
+    listener(draftMap);
+  }
+  return () => {
+    console.log("[room] subscribeDraftMap detach");
+    draftMapListeners.delete(listener);
+  };
 }
 
 /** Test helper: apply shared draft to a doc without going through connectRoom. */
