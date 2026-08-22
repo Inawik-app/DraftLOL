@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { encodeRoom, decodeRoom, type RoomState } from "./token";
+import {
+  encodeRoom,
+  decodeRoom,
+  deriveRoomName,
+  generateRoomId,
+  hashRoomId,
+  type RoomState,
+} from "./token";
 import type { Champion, Player } from "./types";
 
 function champ(id: string, name = id): Champion {
@@ -151,5 +158,35 @@ describe("encodeRoom / decodeRoom", () => {
       const r = decodeRoom(t ?? "", roster);
       expect(r.ok).toBe(false);
     }
+  });
+
+  it("préserve le rid (i) à l'aller-retour", () => {
+    const rid = "550e8400-e29b-41d4-a716-446655440000";
+    const state = { ...sampleState(), rid };
+    const token = encodeRoom(state);
+    const decoded = decodeRoom(token, roster);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.state.rid).toBe(rid);
+  });
+
+  it("token sans rid reste valide (draft hors ligne)", () => {
+    const token = encodeRoom(sampleState());
+    const decoded = decodeRoom(token, roster);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.state.rid).toBeUndefined();
+    expect(deriveRoomName(token)).toBeNull();
+  });
+
+  it("deriveRoomName ne dépend pas du contenu draft", () => {
+    const rid = generateRoomId();
+    const base = { ...sampleState(), rid };
+    const token1 = encodeRoom(base);
+    base.picks.blue[0] = champ("Yasuo");
+    base.profileKey = "dive";
+    const token2 = encodeRoom(base);
+    expect(deriveRoomName(token1)).toBe(hashRoomId(rid));
+    expect(deriveRoomName(token2)).toBe(hashRoomId(rid));
   });
 });

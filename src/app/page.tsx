@@ -8,7 +8,8 @@ import { TokenPanel } from "@/components/TokenPanel";
 import { PROFILES } from "@/data/profiles";
 import { loadChampions } from "@/lib/ddragon";
 import { scoreComp } from "@/lib/score";
-import { decodeRoom, encodeRoom, type RoomState } from "@/lib/token";
+import { decodeRoom, encodeRoom, deriveRoomName, generateRoomId, hashRoomId, type RoomState } from "@/lib/token";
+import { connectRoom, disconnectRoom, setChampionCatalog, subscribeRoomStatus } from "@/lib/room";
 import type { Champion, Pick, Player } from "@/lib/types";
 import { useDraft } from "@/state/useDraft";
 
@@ -25,17 +26,21 @@ function toScorePicks(
   return out;
 }
 
-function toRoomState(draft: {
-  profileKey: RoomState["profileKey"];
-  picks: RoomState["picks"];
-  bans: RoomState["bans"];
-  players: Player[];
-}): RoomState {
+function toRoomState(
+  draft: {
+    profileKey: RoomState["profileKey"];
+    picks: RoomState["picks"];
+    bans: RoomState["bans"];
+    players: Player[];
+  },
+  rid?: string,
+): RoomState {
   return {
     profileKey: draft.profileKey,
     picks: draft.picks,
     bans: draft.bans,
     players: draft.players,
+    ...(rid ? { rid } : {}),
   };
 }
 
@@ -44,6 +49,11 @@ export default function Home() {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomStatus, setRoomStatus] = useState({
+    signalingConnected: false,
+    peerCount: 0,
+  });
   const draft = useDraft();
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
@@ -71,6 +81,13 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!champions.length) return;
+    setChampionCatalog(champions);
+  }, [champions]);
+
+  useEffect(() => subscribeRoomStatus(setRoomStatus), []);
+
   // Restauration depuis le hash une fois le roster chargé
   useEffect(() => {
     if (!champions.length || restoredRef.current) return;
@@ -78,14 +95,28 @@ export default function Home() {
     const raw = window.location.hash.replace(/^#/, "");
     if (!raw) return;
     const result = decodeRoom(decodeURIComponent(raw), champions);
-    if (result.ok) draft.loadRoom(result.state);
+    if (result.ok) {
+      setRoomId(result.state.rid ?? null);
+      draft.loadRoom(result.state);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, [champions]);
 
   const token = useMemo(() => {
     if (!champions.length) return "";
-    return encodeRoom(toRoomState(draft));
-  }, [champions.length, draft.profileKey, draft.picks, draft.bans, draft.players]);
+    return encodeRoom(toRoomState(draft, roomId ?? undefined));
+  }, [champions.length, draft.profileKey, draft.picks, draft.bans, draft.players, roomId]);
+
+  const roomName = useMemo(() => (token ? deriveRoomName(token) : null), [token]);
+
+  useEffect(() => {
+    if (!roomName) {
+      disconnectRoom();
+      return () => disconnectRoom();
+    }
+    connectRoom(roomName);
+    return () => disconnectRoom();
+  }, [roomName]);
 
   // Sync hash, throttle 500 ms, sans entrée d'historique (après restauration)
   useEffect(() => {
@@ -119,8 +150,14 @@ export default function Home() {
   const handleLoadToken = (raw: string) => {
     const result = decodeRoom(raw, champions);
     if (!result.ok) return result;
+    setRoomId(result.state.rid ?? null);
     draft.loadRoom(result.state);
     return { ok: true as const };
+  };
+
+  const handleNewDraft = () => {
+    setRoomId(generateRoomId());
+    draft.reset();
   };
 
   if (error) {
@@ -152,7 +189,15 @@ export default function Home() {
             Patch {version} · {champions.length} champions · aucune donnée stockée
           </p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex items-end gap-2.5">
+          {roomId ? (
+            <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
+              {!roomStatus.signalingConnected
+                ? "Hors ligne"
+                : `${roomStatus.peerCount} pair${roomStatus.peerCount === 1 ? "" : "s"}`}
+            </p>
+          ) : null}
+          <div className="flex gap-1.5">
           <button
             type="button"
             onClick={() => setPlayersOpen((o) => !o)}
@@ -162,11 +207,12 @@ export default function Home() {
           </button>
           <button
             type="button"
-            onClick={draft.reset}
+            onClick={handleNewDraft}
             className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
           >
             Nouvelle draft
           </button>
+          </div>
         </div>
       </header>
 

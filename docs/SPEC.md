@@ -263,11 +263,14 @@ Format : `DRAFT1.<payload>`.
 - `payload` = JSON à clés abrégées, compressé via `lz-string.compressToEncodedURIComponent` — le résultat doit tenir dans une URL.
 - Le préfixe porte la version. Un décodeur rencontrant `DRAFT2.` retourne une erreur explicite plutôt que de tenter une lecture.
 
-Contenu : profil actif, picks et bans des deux équipes (identifiants Data Dragon), et les cinq objets joueur.
+Contenu : profil actif, picks et bans des deux équipes (identifiants Data Dragon), les cinq objets joueur, et optionnellement un identifiant de salle stable (`i` / `rid`).
+
+- `rid` = UUID v4 généré **une seule fois** à la création d'une salle (`crypto.randomUUID()`), jamais régénéré tant que la salle dure. Il est absent des tokens purement hors ligne.
+- Absence de `rid` : le token reste valide pour partage et restauration locale, mais **aucune** connexion temps réel n'est ouverte.
 
 ```ts
 function decodeRoom(token: string): { ok: true; state: RoomState } | { ok: false; reason: string };
-
+function deriveRoomName(token: string): string | null; // null sans rid
 ```
 
 `decodeRoom` **ne jette jamais**. Token tronqué, préfixe absent, version inconnue, JSON invalide, champion inexistant dans le patch courant : chaque cas retourne une raison lisible en français.
@@ -278,11 +281,15 @@ Le token est synchronisé dans `window.location.hash`, en throttle 500 ms.
 
 ## 10. Temps réel
 
-Yjs + `y-webrtc`. Nom de room = hash court dérivé du token, **jamais le token entier** : le nom de room transite par le serveur de signaling, et le token contient les tier lists.
+Yjs + `y-webrtc`. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling, et le token contient les tier lists. Le hash ne dépend pas des picks, bans ou profil — seulement du `rid` stable.
 
-Document partagé (`Y.Map` "draft") : picks, bans, profil actif. **Hors du document partagé, strictement local :** `players` — tier lists, liens op.gg, stats personnelles.
+Sans `rid` dans le token : pas de provider, le site fonctionne normalement en solo.
 
-Le site reste pleinement fonctionnel sans aucun pair connecté. L'état de connexion et le nombre de pairs sont affichés, mais aucune fonctionnalité n'en dépend.
+Document partagé (`Y.Map` "draft", pattern A) : `profileKey`, `picks` et `bans` en valeurs JSON plates (identifiants de champions). **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, `loadRoom`.
+
+**Hors du document partagé, strictement local :** `players` — tier lists, liens op.gg, stats personnelles.
+
+Le site reste pleinement fonctionnel sans aucun pair connecté. Le nombre de pairs connectés est affiché (ou « Hors ligne » si le signaling est coupé) ; aucune fonctionnalité n'en dépend.
 
 ---
 
