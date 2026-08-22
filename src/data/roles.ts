@@ -29,7 +29,7 @@ export const CHAMPION_ROLES: Record<string, DraftRole[]> = {
   Akshan: ["adc","mid"],
   Alistar: ["sup"],
   Ambessa: ["top"],
-  Amumu: ["jgl","sup"]
+  Amumu: ["jgl","sup"],
   Anivia: ["mid"],
   Annie: ["mid"],
   Aphelios: ["adc"],
