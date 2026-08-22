@@ -8,9 +8,21 @@ import {
   type SeriesState,
 } from "@/lib/series";
 
+/** Fixed column widths (px) — geometry stable active/inactive. */
+export const SERIES_BAR_COLUMNS_PX = [
+  148, // bascule
+  76, // Game N
+  168, // périmètre — fits "Nos picks seulement"
+  118, // Valider la game
+  128, // Terminer la série
+  118, // Exporter la série
+  132, // Importer une série
+] as const;
+
+export const SERIES_BAR_HEIGHT_PX = 36;
+
 type Props = {
   series: SeriesState;
-  lockedCount: number;
   canExport: boolean;
   onToggleSeries: (active: boolean) => void;
   onSetLockScope: (scope: LockScope) => void;
@@ -20,10 +32,15 @@ type Props = {
   onImport: (raw: unknown) => void;
 };
 
-/** Fixed-width header slot — geometry unchanged when series is inactive. */
+const btnClass =
+  "font-cond h-[28px] w-full border border-line bg-panel2 px-2 text-[11px] tracking-[0.08em] transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+
+function cellClass(active: boolean): string {
+  return active ? "min-w-0" : "invisible pointer-events-none min-w-0";
+}
+
 export function SeriesControls({
   series,
-  lockedCount,
   canExport,
   onToggleSeries,
   onSetLockScope,
@@ -36,6 +53,7 @@ export function SeriesControls({
   const [pendingEnd, setPendingEnd] = useState(false);
   const [importError, setImportError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const active = series.active;
 
   const handleToggle = () => {
     if (series.active) {
@@ -80,57 +98,96 @@ export function SeriesControls({
   };
 
   return (
-    <div
-      className="relative shrink-0"
-      style={{ width: "640px", height: "52px" }}
-    >
+    <>
       <div
-        className={`absolute inset-0 flex items-end gap-1.5 ${
-          series.active ? "" : "invisible pointer-events-none"
-        }`}
-        aria-hidden={!series.active}
+        className="mt-2 grid items-center gap-x-1.5"
+        style={{
+          height: `${SERIES_BAR_HEIGHT_PX}px`,
+          gridTemplateColumns: SERIES_BAR_COLUMNS_PX.map((w) => `${w}px`).join(
+            " ",
+          ),
+        }}
+        data-testid="series-controls-bar"
       >
-        <span className="font-cond shrink-0 border border-gold bg-ink px-2 py-1 text-[11px] tracking-[0.08em] text-gold">
+        <label
+          className="font-cond flex h-[28px] cursor-pointer items-center gap-1.5 border border-line bg-panel2 px-2 text-[11px] tracking-[0.08em] text-txt transition hover:border-gold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-gold"
+          data-testid="series-col-toggle"
+        >
+          <input
+            type="checkbox"
+            checked={series.active}
+            onChange={handleToggle}
+            className="accent-gold"
+          />
+          Série fearless
+        </label>
+
+        <span
+          className={`font-cond flex h-[28px] items-center justify-center border border-gold bg-ink px-2 text-[11px] tracking-[0.08em] text-gold ${cellClass(active)}`}
+          data-testid="series-col-game"
+          aria-hidden={!active}
+        >
           Game {series.gameNumber}
         </span>
+
         <select
           value={series.lockScope}
           onChange={(e) => onSetLockScope(e.target.value as LockScope)}
-          className="font-cond w-[130px] shrink-0 border border-line bg-panel2 px-1.5 py-1 text-[10px] tracking-[0.06em] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
+          className={`font-cond h-[28px] w-full border border-line bg-panel2 px-1.5 text-[11px] tracking-[0.06em] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold ${cellClass(active)}`}
           aria-label="Périmètre du verrou fearless"
+          aria-hidden={!active}
+          tabIndex={active ? 0 : -1}
+          data-testid="series-col-scope"
         >
           <option value="both">Deux équipes</option>
           <option value="ally">Nos picks seulement</option>
         </select>
+
         <button
           type="button"
           onClick={() => setPendingResult(true)}
-          className="font-cond shrink-0 border border-line bg-panel2 px-2 py-1 text-[11px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className={`${btnClass} text-txt ${cellClass(active)}`}
+          aria-hidden={!active}
+          tabIndex={active ? 0 : -1}
+          data-testid="series-col-validate"
         >
           Valider la game
         </button>
+
         <button
           type="button"
           onClick={() => setPendingEnd(true)}
-          className="font-cond shrink-0 border border-line bg-panel2 px-2 py-1 text-[11px] tracking-[0.08em] text-dim transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className={`${btnClass} text-dim ${cellClass(active)}`}
+          aria-hidden={!active}
+          tabIndex={active ? 0 : -1}
+          data-testid="series-col-end"
         >
           Terminer la série
         </button>
+
         <button
           type="button"
           disabled={!canExport}
           onClick={handleExport}
-          className="font-cond shrink-0 border border-line bg-panel2 px-2 py-1 text-[11px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold disabled:text-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className={`${btnClass} text-txt disabled:text-dim ${cellClass(active)}`}
+          aria-hidden={!active}
+          tabIndex={active ? 0 : -1}
+          data-testid="series-col-export"
         >
           Exporter la série
         </button>
+
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="font-cond shrink-0 border border-line bg-panel2 px-2 py-1 text-[11px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+          className={`${btnClass} text-txt ${cellClass(active)}`}
+          aria-hidden={!active}
+          tabIndex={active ? 0 : -1}
+          data-testid="series-col-import"
         >
           Importer une série
         </button>
+
         <input
           ref={fileRef}
           type="file"
@@ -142,34 +199,10 @@ export function SeriesControls({
             if (file) void handleImportFile(file);
           }}
         />
-        {lockedCount > 0 ? (
-          <span className="font-cond shrink-0 text-[10px] tracking-[0.08em] text-dim">
-            {lockedCount} verrou{lockedCount === 1 ? "" : "s"}
-          </span>
-        ) : (
-          <span className="font-cond shrink-0 text-[10px] tracking-[0.08em] text-dim opacity-0">
-            0 verrous
-          </span>
-        )}
-      </div>
-
-      <div className="absolute bottom-0 left-0 flex items-end gap-1.5">
-        <label className="font-cond flex shrink-0 cursor-pointer items-center gap-1.5 border border-line bg-panel2 px-2 py-1 text-[11px] tracking-[0.08em] text-txt transition hover:border-gold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-gold">
-          <input
-            type="checkbox"
-            checked={series.active}
-            onChange={handleToggle}
-            className="accent-gold"
-          />
-          Série fearless
-        </label>
       </div>
 
       {importError ? (
-        <p
-          className="absolute -bottom-4 left-0 max-w-[640px] truncate text-[10px] text-bad"
-          role="alert"
-        >
+        <p className="mt-1 text-[10px] text-bad" role="alert">
           {importError}
         </p>
       ) : null}
@@ -264,6 +297,6 @@ export function SeriesControls({
           </div>
         </div>
       ) : null}
-    </div>
+    </>
   );
 }

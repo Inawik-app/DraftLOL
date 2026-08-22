@@ -246,31 +246,20 @@ export default function Home() {
         />
       ) : null}
 
-      <header className="flex flex-wrap items-end justify-between gap-2.5 border-b border-line pb-2.5">
-        <div>
-          <h1 className="font-cond text-[26px] leading-none tracking-[0.14em]">
-            Draft<span className="text-gold">.</span>board
-          </h1>
-          <p className="font-cond mt-1 text-[11px] tracking-[0.1em] text-dim">
-            Patch {version} · {champions.length} champions · aucune donnée stockée
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1.5">
+      <header className="border-b border-line pb-2.5">
+        <div className="flex flex-wrap items-end justify-between gap-2.5">
+          <div>
+            <h1 className="font-cond text-[26px] leading-none tracking-[0.14em]">
+              Draft<span className="text-gold">.</span>board
+            </h1>
+            <p className="font-cond mt-1 text-[11px] tracking-[0.1em] text-dim">
+              Patch {version} · {champions.length} champions · aucune donnée stockée
+            </p>
+          </div>
           <div className="flex items-end gap-2.5">
             <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
               {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
             </p>
-            <SeriesControls
-              series={draft.series}
-              lockedCount={draft.locked.size}
-              canExport={canExportSeries}
-              onToggleSeries={draft.toggleSeries}
-              onSetLockScope={draft.setLockScope}
-              onValidateGame={draft.validateGame}
-              onEndSeries={draft.endSeries}
-              onExport={draft.exportSeriesPayload}
-              onImport={draft.importSeries}
-            />
             <div className="flex gap-1.5">
               <button
                 type="button"
@@ -289,6 +278,17 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        <SeriesControls
+          series={draft.series}
+          canExport={canExportSeries}
+          onToggleSeries={draft.toggleSeries}
+          onSetLockScope={draft.setLockScope}
+          onValidateGame={draft.validateGame}
+          onEndSeries={draft.endSeries}
+          onExport={draft.exportSeriesPayload}
+          onImport={draft.importSeries}
+        />
       </header>
 
       <ProfileSelector
