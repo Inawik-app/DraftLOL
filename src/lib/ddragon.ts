@@ -4,6 +4,7 @@ import { isTag, type Champion, type Tag } from "./types";
 
 type RiotChampion = {
   id: string;
+  key: string;
   name: string;
   title: string;
   tags: string[];
@@ -35,6 +36,35 @@ export const DDRAGON_PARSE_MSG =
   "Data Dragon a répondu mais les données champions sont illisibles. Réessaie dans quelques minutes — Riot met parfois à jour le format sans prévenir.";
 
 let pending: Promise<LoadResult> | null = null;
+
+let idToKeyMap = new Map<string, number>();
+let keyToIdMap = new Map<number, string>();
+
+function parseChampionKey(raw: string, id: string): number {
+  const key = Number.parseInt(raw, 10);
+  if (!Number.isInteger(key) || key < 0) {
+    throw new DDragonLoadError(
+      "parse",
+      `${DDRAGON_PARSE_MSG} (clé invalide pour ${id})`,
+    );
+  }
+  return key;
+}
+
+function rebuildKeyMaps(champions: Champion[]): void {
+  idToKeyMap = new Map(champions.map((c) => [c.id, c.key]));
+  keyToIdMap = new Map(champions.map((c) => [c.key, c.id]));
+}
+
+/** Text id for a Data Dragon numeric key, if known in the loaded roster. */
+export function championIdFromKey(key: number): string | undefined {
+  return keyToIdMap.get(key);
+}
+
+/** Numeric Data Dragon key for a champion text id, if known in the loaded roster. */
+export function championKeyFromId(id: string): number | undefined {
+  return idToKeyMap.get(id);
+}
 
 function parseCuratedTags(id: string, raw: string): Tag[] {
   return raw.split(" ").map((token) => {
@@ -93,6 +123,7 @@ async function fetchChampions(): Promise<LoadResult> {
           : deriveTags(c);
         return {
           id: c.id,
+          key: parseChampionKey(c.key, c.id),
           name: c.name,
           title: c.title,
           tags,
@@ -102,6 +133,7 @@ async function fetchChampions(): Promise<LoadResult> {
       })
       .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
+    rebuildKeyMaps(champions);
     return { version, champions };
   } catch (err) {
     if (err instanceof DDragonLoadError) throw err;

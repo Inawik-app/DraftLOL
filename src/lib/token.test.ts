@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   encodeRoom,
+  encodeOfflineDraft,
   decodeRoom,
   deriveRoomName,
+  extractRidFromHash,
+  formatRoomHash,
   formatMissingChampionsMessage,
   generateRoomId,
   hashRoomId,
@@ -10,9 +13,10 @@ import {
 } from "./token";
 import type { Champion, Player } from "./types";
 
-function champ(id: string, name = id): Champion {
+function champ(id: string, name = id, key = id.length * 10): Champion {
   return {
     id,
+    key,
     name,
     title: "titre",
     tags: ["ad"],
@@ -89,7 +93,28 @@ describe("encodeRoom / decodeRoom", () => {
     expect(decoded.state.players[0].name).toBe("Alice");
     expect(decoded.state.players[0].opgg).toBe("https://op.gg/alice");
     expect(decoded.state.players[2].tiers.Ahri).toBe("S");
-    expect(decoded.state.players[2].stats.Ahri?.vs?.Zed).toBe(60);
+    expect(decoded.state.players[2].stats).toEqual({});
+  });
+
+  it("encodeOfflineDraft n'inclut pas le rid ni les stats", () => {
+    const state = sampleState();
+    const token = encodeOfflineDraft(state);
+    expect(token.startsWith("DRAFT1.")).toBe(true);
+    const decoded = decodeRoom(token, roster);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.state.rid).toBeUndefined();
+    expect(decoded.state.players[2].stats).toEqual({});
+  });
+
+  it("extractRidFromHash lit un uuid dans #r=", () => {
+    const rid = "550e8400-e29b-41d4-a716-446655440000";
+    expect(extractRidFromHash(formatRoomHash(rid))).toBe(rid);
+    expect(
+      extractRidFromHash(
+        `https://draft.example/#r=${rid}`,
+      ),
+    ).toBe(rid);
   });
 
   it("ignore silencieusement un champion absent du patch", () => {

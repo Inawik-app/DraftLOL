@@ -5,6 +5,7 @@ const VERSION = "14.1.1";
 const roster = {
   Ziggs: {
     id: "Ziggs",
+    key: "115",
     name: "Ziggs",
     title: "l'Expert des Hexplosifs",
     tags: ["Mage"],
@@ -12,6 +13,7 @@ const roster = {
   },
   Ahri: {
     id: "Ahri",
+    key: "103",
     name: "Ahri",
     title: "la Renard à Neuf Queues",
     tags: ["Mage", "Assassin"],
@@ -19,6 +21,7 @@ const roster = {
   },
   Briar: {
     id: "Briar",
+    key: "233",
     name: "Briar",
     title: "la Faim Réprimée",
     tags: ["Fighter", "Assassin"],
@@ -81,6 +84,11 @@ describe("loadChampions", () => {
     expect(ziggs.curated).toBe(true);
     expect(briar.curated).toBe(false);
     expect(briar.tags.length).toBeGreaterThan(0);
+    expect(briar.key).toBe(233);
+
+    const { championIdFromKey, championKeyFromId } = await import("./ddragon");
+    expect(championKeyFromId("Ahri")).toBe(103);
+    expect(championIdFromKey(103)).toBe("Ahri");
   });
 
   it("rejette avec un message FR en cas d'échec réseau", async () => {

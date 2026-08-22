@@ -22,6 +22,7 @@ export type TierLabel = "S" | "A" | "B";
 
 export interface Champion {
   id: string;
+  key: number;
   name: string;
   title: string;
   tags: Tag[];

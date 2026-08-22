@@ -5,7 +5,9 @@ import {
   disconnectRoom,
   getDraftMap,
   readSharedDraft,
+  readSharedPlayers,
   writeSharedDraftToDoc,
+  writeSharedPlayerToDoc,
 } from "./room";
 import {
   deriveRoomNameFromRid,
@@ -13,6 +15,7 @@ import {
   generateRoomId,
   hashRoomId,
 } from "./token";
+import { encodeTierSeed } from "./tierSeed";
 import type { RoomState } from "./token";
 
 function minimalRoomState(rid: string): RoomState {
@@ -81,9 +84,49 @@ describe("room join semantics", () => {
     expect(remote?.picks.blue.filter(Boolean)).toEqual(["Ahri", "Zed", "Lux"]);
   });
 
-  it("connectRoom n'écrit jamais dans la Y.Map", () => {
+  it("connectRoom n'écrit jamais dans la Y.Map draft", () => {
     connectRoom("test-room-no-write");
     expect(getDraftMap()?.size ?? 0).toBe(0);
     disconnectRoom();
+  });
+});
+
+describe("shared players map", () => {
+  const emptySeed = encodeTierSeed({ S: [], A: [], B: [] });
+
+  it("un client rejoignant reçoit les tier lists publiées sans écraser les autres", () => {
+    const docA = new Y.Doc();
+    writeSharedPlayerToDoc(docA, 0, {
+      name: "Alice",
+      tierSeed: emptySeed,
+    });
+    writeSharedPlayerToDoc(docA, 2, {
+      name: "Bob",
+      tierSeed: emptySeed,
+    });
+
+    const docB = new Y.Doc();
+    expect(docB.getMap("players").size).toBe(0);
+
+    Y.applyUpdate(docB, Y.encodeStateAsUpdate(docA));
+
+    const received = readSharedPlayers(docB.getMap("players"));
+    expect(received[0]?.name).toBe("Alice");
+    expect(received[2]?.name).toBe("Bob");
+    expect(received[1]).toBeUndefined();
+
+    writeSharedPlayerToDoc(
+      docB,
+      1,
+      { name: "Carol", tierSeed: emptySeed },
+      "local",
+    );
+
+    Y.applyUpdate(docA, Y.encodeStateAsUpdate(docB));
+
+    const merged = readSharedPlayers(docA.getMap("players"));
+    expect(merged[0]?.name).toBe("Alice");
+    expect(merged[1]?.name).toBe("Carol");
+    expect(merged[2]?.name).toBe("Bob");
   });
 });

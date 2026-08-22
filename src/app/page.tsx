@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppNav } from "@/components/AppNav";
 import { DraftBoard } from "@/components/DraftBoard";
 import { FailurePanel } from "@/components/FailurePanel";
+import { OfflineDraftPanel } from "@/components/OfflineDraftPanel";
 import { PlayersPanel } from "@/components/PlayersPanel";
 import { ProfileSelector } from "@/components/ProfileSelector";
+import { RoomLinkPanel } from "@/components/RoomLinkPanel";
 import { StatusNotice } from "@/components/StatusNotice";
-import { TokenPanel } from "@/components/TokenPanel";
 import { PROFILES } from "@/data/profiles";
 import {
   DDragonLoadError,
   loadChampions,
 } from "@/lib/ddragon";
-import { NO_PEERS_TIMEOUT_MSG, connectRoom, disconnectRoom, setChampionCatalog, subscribeRoomStatus } from "@/lib/room";
+import {
+  NO_PEERS_TIMEOUT_MSG,
+  setChampionCatalog,
+  subscribeRoomStatus,
+  syncRoomFromLocation,
+} from "@/lib/room";
 import { scoreComp } from "@/lib/score";
 import {
   isLocalStorageAvailable,
@@ -20,12 +27,13 @@ import {
 } from "@/lib/storage";
 import {
   decodeRoom,
-  encodeRoom,
+  encodeOfflineDraft,
   deriveRoomNameFromRid,
+  extractRidFromHash,
+  extractToken,
   formatMissingChampionsMessage,
   generateRoomId,
-  replaceLocationHash,
-  type RoomState,
+  replaceLocationRid,
 } from "@/lib/token";
 import type { Champion, Pick, Player } from "@/lib/types";
 import { useDraft } from "@/state/useDraft";
@@ -41,24 +49,6 @@ function toScorePicks(
     out.push({ champ, tier, roleIdx });
   });
   return out;
-}
-
-function toRoomState(
-  draft: {
-    profileKey: RoomState["profileKey"];
-    picks: RoomState["picks"];
-    bans: RoomState["bans"];
-    players: Player[];
-  },
-  rid: string,
-): RoomState {
-  return {
-    profileKey: draft.profileKey,
-    picks: draft.picks,
-    bans: draft.bans,
-    players: draft.players,
-    rid,
-  };
 }
 
 function roomStatusLabel(
@@ -89,7 +79,6 @@ export default function Home() {
   const draft = useDraft();
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
-  const hashTimer = useRef<number | null>(null);
   const lastWrittenRidRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -135,37 +124,60 @@ export default function Home() {
     if (roomStatus.noPeersTimedOut) setShowNoPeersNotice(true);
   }, [roomStatus.noPeersTimedOut]);
 
-  // Restauration depuis le hash une fois le roster chargé
   useEffect(() => {
     if (!champions.length || restoredRef.current) return;
     restoredRef.current = true;
-    const raw = window.location.hash.replace(/^#/, "");
-    if (!raw) {
-      setRoomId(generateRoomId());
+
+    const rid =
+      extractRidFromHash(window.location.hash) ??
+      extractRidFromHash(window.location.href);
+
+    if (rid) {
+      setRoomId(rid);
       return;
     }
-    const result = decodeRoom(decodeURIComponent(raw), champions);
-    if (result.ok) {
-      setRoomId(result.state.rid ?? generateRoomId());
-      draft.loadRoom(result.state);
-      if (result.missingChampionIds.length) {
-        setPatchWarning(
-          formatMissingChampionsMessage(result.missingChampionIds),
+
+    const legacyToken =
+      extractToken(window.location.hash) ??
+      extractToken(window.location.href);
+    if (legacyToken?.startsWith("DRAFT1.")) {
+      const result = decodeRoom(legacyToken, champions);
+      if (result.ok) {
+        setRoomId(result.state.rid ?? generateRoomId());
+        draft.loadRoom(result.state);
+        if (result.missingChampionIds.length) {
+          setPatchWarning(
+            formatMissingChampionsMessage(result.missingChampionIds),
+          );
+        }
+      } else {
+        setRoomId(generateRoomId());
+        setHashNotice(
+          "Le lien dans l'URL est illisible ou corrompu. Une nouvelle salle a été créée — repartage le lien à ton équipe.",
         );
       }
-    } else {
-      setRoomId(generateRoomId());
-      setHashNotice(
-        "Le lien dans l'URL est illisible ou corrompu. Une nouvelle salle a été créée — repartage le lien à ton équipe.",
-      );
+      return;
     }
+
+    setRoomId(generateRoomId());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, [champions]);
 
-  const token = useMemo(() => {
-    if (!champions.length || !roomId) return "";
-    return encodeRoom(toRoomState(draft, roomId));
-  }, [champions.length, draft.profileKey, draft.picks, draft.bans, draft.players, roomId]);
+  const offlineDraftToken = useMemo(() => {
+    if (!champions.length) return "";
+    return encodeOfflineDraft({
+      profileKey: draft.profileKey,
+      picks: draft.picks,
+      bans: draft.bans,
+      players: draft.players,
+    });
+  }, [
+    champions.length,
+    draft.profileKey,
+    draft.picks,
+    draft.bans,
+    draft.players,
+  ]);
 
   const roomName = useMemo(
     () => (roomId ? deriveRoomNameFromRid(roomId) : null),
@@ -176,55 +188,17 @@ export default function Home() {
     console.log("[room] page mount/update", {
       roomId,
       roomName,
-      tokenHasRid: roomId != null,
-      hash: typeof window !== "undefined" ? window.location.hash.slice(0, 40) + "…" : "",
+      hash: typeof window !== "undefined" ? window.location.hash : "",
     });
   }, [roomId, roomName]);
 
   useEffect(() => {
-    console.log("[room] connect effect run", {
-      deps: { roomName },
-      action: roomName ? "connectRoom" : "disconnectRoom",
-    });
-    if (!roomName) {
-      disconnectRoom();
-      return () => {
-        console.log("[room] connect effect cleanup (no roomName)");
-        disconnectRoom();
-      };
-    }
-    connectRoom(roomName);
-    setShowNoPeersNotice(true);
-    return () => {
-      console.log("[room] connect effect cleanup", { roomName });
-      disconnectRoom();
-    };
-  }, [roomName]);
-
-  // rid (ou changement de salle) : hash immédiat, sans throttle
-  useEffect(() => {
-    if (!token || !roomId) return;
+    if (!roomId || !restoredRef.current) return;
     if (lastWrittenRidRef.current === roomId) return;
     lastWrittenRidRef.current = roomId;
-    console.log("[room] hash immediate (rid)", { roomId });
-    replaceLocationHash(token);
-  }, [token, roomId]);
-
-  // Reste du payload : hash throttle 500 ms
-  useEffect(() => {
-    if (!token || !restoredRef.current || !roomId) return;
-    if (hashTimer.current != null) window.clearTimeout(hashTimer.current);
-    hashTimer.current = window.setTimeout(() => {
-      const next = `#${token}`;
-      if (window.location.hash !== next) {
-        console.log("[room] hash throttled (draft payload)");
-        replaceLocationHash(token);
-      }
-    }, 500);
-    return () => {
-      if (hashTimer.current != null) window.clearTimeout(hashTimer.current);
-    };
-  }, [token, roomId]);
+    replaceLocationRid(roomId);
+    syncRoomFromLocation();
+  }, [roomId]);
 
   const blueEval = useMemo(
     () => scoreComp(toScorePicks(draft.picks.blue, draft.players), profile),
@@ -236,12 +210,9 @@ export default function Home() {
     [draft.picks.red, profile],
   );
 
-  const handleLoadToken = (raw: string) => {
+  const handleLoadOfflineDraft = (raw: string) => {
     const result = decodeRoom(raw, champions);
     if (!result.ok) return result;
-    if (result.state.rid) {
-      setRoomId(result.state.rid);
-    }
     draft.loadRoom(result.state);
     if (result.missingChampionIds.length) {
       const warning = formatMissingChampionsMessage(result.missingChampionIds);
@@ -252,11 +223,17 @@ export default function Home() {
     return { ok: true as const };
   };
 
+  const handleJoinRoom = (rid: string) => {
+    lastWrittenRidRef.current = null;
+    setRoomId(rid);
+  };
+
   const handleNewDraft = () => {
     draft.reset();
   };
 
   const handleLeaveRoom = () => {
+    lastWrittenRidRef.current = null;
     setRoomId(generateRoomId());
   };
 
@@ -287,7 +264,7 @@ export default function Home() {
     );
   }
 
-  if (!version) {
+  if (!version || !roomId) {
     return (
       <div className="mx-auto max-w-[1240px] px-3.5 py-3.5">
         <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
@@ -299,6 +276,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-[1240px] px-3.5 pb-14 pt-3.5">
+      <AppNav />
       {showStorageNotice ? (
         <StatusNotice
           tone="info"
@@ -338,11 +316,9 @@ export default function Home() {
           </p>
         </div>
         <div className="flex items-end gap-2.5">
-          {roomId ? (
-            <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
-              {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
-            </p>
-          ) : null}
+          <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
+            {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
+          </p>
           <div className="flex gap-1.5">
             <button
               type="button"
@@ -392,14 +368,19 @@ export default function Home() {
         open={playersOpen}
         onToggle={() => setPlayersOpen((o) => !o)}
         version={version}
-        champions={champions}
         players={draft.players}
+        myRoleIndex={draft.myRoleIndex}
+        onSetMyRoleIndex={draft.setMyRoleIndex}
         onUpdatePlayer={draft.updatePlayer}
-        onCycleTier={draft.cyclePlayerTier}
-        onRemoveFromPool={draft.removeFromPool}
+        onImportPlayerTiers={draft.importPlayerTiers}
       />
 
-      <TokenPanel token={token} onLoadToken={handleLoadToken} />
+      <RoomLinkPanel roomId={roomId} onJoinRoom={handleJoinRoom} />
+
+      <OfflineDraftPanel
+        offlineToken={offlineDraftToken}
+        onLoadOfflineDraft={handleLoadOfflineDraft}
+      />
     </div>
   );
 }

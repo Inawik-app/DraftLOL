@@ -9,9 +9,10 @@ import {
   type TierLabel,
 } from "./types";
 
-function makeChamp(id: string, tags: Tag[]): Champion {
+function makeChamp(id: string, tags: Tag[], key = id.length * 10): Champion {
   return {
     id,
+    key,
     name: id,
     title: "",
     tags,

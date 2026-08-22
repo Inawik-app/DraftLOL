@@ -256,38 +256,44 @@ type ChampStats = {
 
 ---
 
-## 9. Token de salle
+## 9. Token de salle et export hors ligne
 
-Format : `DRAFT1.<payload>`.
+**Lien de salle (temps réel)** : `#r=<rid>` où `rid` est un UUID v4 (~36 caractères). Le hash ne contient **que** l'identifiant de salle — pas de picks, bans, profil ni joueurs. `extractRidFromHash` accepte aussi les anciens liens `#r=DRAFT1.…` portant un champ `i` pour migration.
 
-- `payload` = JSON à clés abrégées, compressé via `lz-string.compressToEncodedURIComponent` — le résultat doit tenir dans une URL.
-- Le préfixe porte la version. Un décodeur rencontrant `DRAFT2.` retourne une erreur explicite plutôt que de tenter une lecture.
+- `rid` = UUID v4 généré **une seule fois** à la création d'une salle (`crypto.randomUUID()`), jamais régénéré tant que la salle dure.
+- Le hash est mis à jour immédiatement à chaque changement de `rid` (nouvelle salle, rejoindre, quitter).
 
-Contenu : profil actif, picks et bans des deux équipes (identifiants Data Dragon), les cinq objets joueur, et optionnellement un identifiant de salle stable (`i` / `rid`).
+**Export hors ligne** : format `DRAFT1.<payload>` (snapshot figé, sans temps réel).
 
-- `rid` = UUID v4 généré **une seule fois** à la création d'une salle (`crypto.randomUUID()`), jamais régénéré tant que la salle dure. Il est absent des tokens purement hors ligne.
-- Absence de `rid` : le token reste valide pour partage et restauration locale, mais **aucune** connexion temps réel n'est ouverte.
+- `payload` = JSON à clés abrégées, compressé via `lz-string.compressToEncodedURIComponent`.
+- Contenu : profil actif, picks et bans (identifiants Data Dragon), les cinq objets joueur (pseudo, op.gg, tier lists). **Pas de `rid`**, pas de stats perso (celles-ci restent en localStorage).
+- Le préfixe porte la version. Un décodeur rencontrant `DRAFT2.` retourne une erreur explicite.
 
 ```ts
+function encodeOfflineDraft(state: OfflineDraftState): string;
 function decodeRoom(token: string): { ok: true; state: RoomState } | { ok: false; reason: string };
-function deriveRoomName(token: string): string | null; // null sans rid
+function extractRidFromHash(input: string): string | null;
+function deriveRoomNameFromRid(rid: string): string;
 ```
 
 `decodeRoom` **ne jette jamais**. Token tronqué, préfixe absent, version inconnue, JSON invalide, champion inexistant dans le patch courant : chaque cas retourne une raison lisible en français.
 
-Le token est synchronisé dans `window.location.hash`, en throttle 500 ms.
+Deux actions UI distinctes : « Copier le lien de la salle » (`#r=<rid>`) et « Exporter la draft » (`DRAFT1.…`).
 
 ---
 
 ## 10. Temps réel
 
-Yjs + `y-webrtc`. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling, et le token contient les tier lists. Le hash ne dépend pas des picks, bans ou profil — seulement du `rid` stable.
+Yjs + `y-webrtc`. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling. Le `rid` aléatoire évite toute fuite de données via le nom de room — les tier lists peuvent donc vivre dans le document partagé.
 
-Sans `rid` dans le token : pas de provider, le site fonctionne normalement en solo.
+Sans `rid` dans le hash : pas de provider, le site fonctionne normalement en solo ou via export DRAFT1.
 
-Document partagé (`Y.Map` "draft", pattern A) : `profileKey`, `picks` et `bans` en valeurs JSON plates (identifiants de champions). **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, `loadRoom`.
+Document partagé :
 
-**Hors du document partagé, strictement local :** `players` — tier lists, liens op.gg, stats personnelles.
+- `Y.Map` **"draft"** (pattern A) : `profileKey`, `picks` et `bans` en valeurs JSON plates (identifiants de champions). **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, `loadRoom` (import offline avec contenu draft).
+- `Y.Map` **"players"** : une entrée par rôle (clés `"0"`…`"4"`), valeur `{ name, tierSeed }` (seed TL1.). **Chaque client écrit uniquement son propre slot** (index choisi dans l'UI). Personne n'écrit l'entrée d'un autre. À la jointure, un client lit les entrées distantes sans écraser les siennes ni celles des autres.
+
+**Hors du document partagé, strictement local :** stats personnelles et lien op.gg (localStorage par index de rôle pour les stats ; op.gg non synchronisé).
 
 Le site reste pleinement fonctionnel sans aucun pair connecté. Le nombre de pairs connectés est affiché (ou « Hors ligne » si le signaling est coupé) ; aucune fonctionnalité n'en dépend.
 

@@ -6,10 +6,144 @@ import { PROFILES, type ProfileKey } from "@/data/profiles";
 import type { Champion, Player, TierLabel } from "./types";
 
 const TOKEN_PREFIX = "DRAFT1.";
-const TOKEN_VERSION_RE = /^DRAFT(\d+)\./;
+const TOKEN_VERSION_RE = /DRAFT(\d+)\./;
+export const KNOWN_TOKEN_PREFIXES = ["DRAFT1.", "TL1."] as const;
 
-export type RoomState = {
+const EXTRACT_PREFIX_RE = /(?:DRAFT\d+\.|TL1\.)/;
+const TOKEN_BODY_RE = /^((?:DRAFT\d+\.|TL1\.)[^\s"'<>]+)/;
+
+/**
+ * Extracts a bare DRAFT1. or TL1. token from pasted text (URL, hash, quotes, junk).
+ * Returns null when no known prefix is found.
+ */
+export function extractToken(input: string): string | null {
+  if (typeof input !== "string") return null;
+
+  let s = input.trim();
+  if (!s) return null;
+
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+
+  s = s.replace(/[\r\n]+/g, " ").trim();
+  s = s.replace(/[.,;!?]+$/g, "");
+
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(s)) {
+      s = decodeURIComponent(s);
+    }
+  } catch {
+    // keep raw string
+  }
+
+  const rParam = s.match(/(?:[#?&]|^)r=((?:DRAFT\d+\.|TL1\.).+)/);
+  if (rParam?.[1]) return sliceTokenBody(rParam[1]);
+
+  const hashMatch = s.match(/#(?:r=)?((?:DRAFT\d+\.|TL1\.).+)/);
+  if (hashMatch?.[1]) return sliceTokenBody(hashMatch[1]);
+
+  const start = s.search(EXTRACT_PREFIX_RE);
+  if (start !== -1) return sliceTokenBody(s.slice(start));
+
+  return null;
+}
+
+function sliceTokenBody(raw: string): string | null {
+  const trimmed = raw.trim();
+  const match = trimmed.match(TOKEN_BODY_RE);
+  return match?.[1] ?? null;
+}
+
+export function formatShareHash(token: string): string {
+  return `#r=${encodeURIComponent(token)}`;
+}
+
+/** Room link hash — only the stable room id (~40 chars with prefix). */
+export function formatRoomHash(rid: string): string {
+  return `#r=${rid}`;
+}
+
+export function formatRoomUrl(rid: string): string {
+  if (typeof window === "undefined") return formatRoomHash(rid);
+  return `${window.location.origin}${window.location.pathname}${window.location.search}${formatRoomHash(rid)}`;
+}
+
+const ROOM_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isValidRoomId(rid: string): boolean {
+  return ROOM_ID_RE.test(rid.trim());
+}
+
+/**
+ * Extracts a room id from `#r=<uuid>`, a full URL, or legacy DRAFT1. tokens carrying `i`.
+ */
+export function extractRidFromHash(input: string): string | null {
+  if (typeof input !== "string") return null;
+
+  let s = input.trim();
+  if (!s) return null;
+
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+
+  s = s.replace(/[\r\n]+/g, " ").trim();
+  s = s.replace(/[.,;!?]+$/g, "");
+
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(s)) {
+      s = decodeURIComponent(s);
+    }
+  } catch {
+    // keep raw
+  }
+
+  const rUuid = s.match(/(?:[#?&]|^)r=([0-9a-f-]{36})/i);
+  if (rUuid?.[1] && isValidRoomId(rUuid[1])) return rUuid[1];
+
+  const legacyRid = extractRoomIdFromToken(s);
+  if (legacyRid && isValidRoomId(legacyRid)) return legacyRid;
+
+  return null;
+}
+
+export function replaceLocationRid(rid: string): void {
+  const next = formatRoomHash(rid);
+  if (window.location.hash === next) return;
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${window.location.search}${next}`,
+  );
+}
+
+export function formatShareUrl(token: string): string {
+  if (typeof window === "undefined") return formatShareHash(token);
+  return `${window.location.origin}${window.location.pathname}${window.location.search}${formatShareHash(token)}`;
+}
+
+export type OfflineDraftState = {
   profileKey: ProfileKey;
+  picks: {
+    blue: (Champion | null)[];
+    red: (Champion | null)[];
+  };
+  bans: {
+    blue: string[];
+    red: string[];
+  };
+  players: Player[];
+};
+
+export type RoomState = OfflineDraftState & {
   picks: {
     blue: (Champion | null)[];
     red: (Champion | null)[];
@@ -157,7 +291,15 @@ function parseCompactPayload(
   }
 
   const trimmed = token.trim();
-  const versionMatch = trimmed.match(TOKEN_VERSION_RE);
+  const extracted = extractToken(trimmed);
+  if (!extracted) {
+    return {
+      ok: false,
+      reason:
+        "Préfixe absent. Le token doit commencer par DRAFT1. — recopie-le en entier.",
+    };
+  }
+  const versionMatch = extracted.match(TOKEN_VERSION_RE);
 
   if (!versionMatch) {
     return {
@@ -175,7 +317,7 @@ function parseCompactPayload(
     };
   }
 
-  const payload = trimmed.slice(TOKEN_PREFIX.length);
+  const payload = extracted.slice(TOKEN_PREFIX.length);
   if (!payload) {
     return {
       ok: false,
@@ -239,13 +381,42 @@ export function deriveRoomNameFromRid(rid: string): string {
   return hashRoomId(rid.trim());
 }
 
+/** Reads stable room id (`i`) from a DRAFT token without decoding picks. */
+export function extractRoomIdFromToken(input: string): string | null {
+  const token = extractToken(input);
+  if (!token) return null;
+  const parsed = parseCompactPayload(token);
+  if (!parsed.ok) return null;
+  const rid = parsed.compact.i;
+  return typeof rid === "string" && rid.trim() ? rid.trim() : null;
+}
+
 export function replaceLocationHash(token: string): void {
-  const next = `#${token}`;
+  const next = formatShareHash(token);
   if (window.location.hash === next) return;
   window.history.replaceState(
     null,
     "",
     `${window.location.pathname}${window.location.search}${next}`,
+  );
+}
+
+export function encodeOfflineDraft(state: OfflineDraftState): string {
+  const compact: CompactPayload = {
+    p: state.profileKey,
+    b: state.picks.blue.map((p) => (p ? p.id : "")),
+    r: state.picks.red.map((p) => (p ? p.id : "")),
+    bb: state.bans.blue,
+    rb: state.bans.red,
+    pl: state.players.map((pl) => ({
+      n: pl.name,
+      o: pl.opgg,
+      t: pl.tiers,
+    })),
+  };
+  return (
+    TOKEN_PREFIX +
+    compressToEncodedURIComponent(JSON.stringify(compact))
   );
 }
 
@@ -260,7 +431,6 @@ export function encodeRoom(state: RoomState): string {
       n: pl.name,
       o: pl.opgg,
       t: pl.tiers,
-      s: pl.stats,
     })),
   };
   if (state.rid) {

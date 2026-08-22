@@ -3,9 +3,10 @@ import { PROFILES } from "@/data/profiles";
 import { suggestForRole } from "./suggest";
 import type { Champion, Pick, Player, Tag } from "./types";
 
-function champ(id: string, tags: Tag[]): Champion {
+function champ(id: string, tags: Tag[], key = id.length * 10): Champion {
   return {
     id,
+    key,
     name: id,
     title: "",
     tags,
