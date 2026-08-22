@@ -110,13 +110,13 @@ function PlayerCard({
         {roleLabel}
       </div>
       <input
-        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus:outline focus:outline-1 focus:outline-gold"
+        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
         placeholder="Pseudo"
         value={data.name}
         onChange={(e) => onUpdate({ name: e.target.value })}
       />
       <input
-        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus:outline focus:outline-1 focus:outline-gold"
+        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
         placeholder="Lien op.gg / u.gg"
         value={data.opgg}
         onChange={(e) => onUpdate({ opgg: e.target.value })}
@@ -126,14 +126,14 @@ function PlayerCard({
           href={data.opgg}
           target="_blank"
           rel="noopener noreferrer"
-          className="mb-1 block truncate text-[11px] text-gold underline-offset-2 hover:underline"
+          className="mb-1 block truncate text-[11px] text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
         >
           {data.opgg}
         </a>
       )}
 
       <input
-        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus:outline focus:outline-1 focus:outline-gold"
+        className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
         placeholder="Ajouter au pool…"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -169,7 +169,8 @@ function PlayerCard({
             <button
               type="button"
               title="Changer de tier"
-              className="font-cond h-[18px] w-[18px] border border-line bg-ink text-[10px] text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              aria-label={`Tier ${tier} pour ${id}, cliquer pour changer`}
+              className="font-cond flex h-11 min-w-11 items-center justify-center border border-line bg-ink px-2 text-[10px] text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold min-[900px]:h-[18px] min-[900px]:min-w-[18px] min-[900px]:px-0"
               onClick={() => onCycleTier(id)}
             >
               {tier}
@@ -178,7 +179,8 @@ function PlayerCard({
             <button
               type="button"
               title="Retirer"
-              className="font-cond h-[18px] w-[18px] border border-line bg-ink text-[10px] text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              aria-label={`Retirer ${id} du pool`}
+              className="font-cond flex h-11 min-w-11 items-center justify-center border border-line bg-ink text-[10px] text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold min-[900px]:h-[18px] min-[900px]:min-w-[18px]"
               onClick={() => onRemove(id)}
             >
               ×
@@ -193,7 +195,7 @@ function PlayerCard({
         </summary>
         <textarea
           rows={4}
-          className={`mt-1 w-full resize-y border bg-ink px-1.5 py-1 font-mono text-[10px] text-txt focus:outline focus:outline-1 focus:outline-gold ${
+          className={`mt-1 w-full resize-y border bg-ink px-1.5 py-1 font-mono text-[10px] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold ${
             statsInvalid ? "border-bad" : "border-line"
           }`}
           placeholder={`{"Ahri":{"games":42,"wr":57,"vs":{"Zed":45,"Syndra":63}}}`}

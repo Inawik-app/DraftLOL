@@ -27,11 +27,6 @@ const ROLES = [
   { id: "sup", label: "SUP" },
 ] as const;
 
-const TEAM_LABEL: Record<TeamId, string> = {
-  blue: "bleu",
-  red: "rouge",
-};
-
 type Props = {
   version: string;
   champions: Champion[];
@@ -114,8 +109,18 @@ export function DraftBoard({
     picker == null
       ? ""
       : picker.kind === "ban"
-        ? `Ban ${TEAM_LABEL[picker.team]} ${picker.index + 1}`
-        : `${ROLES[picker.index].label} · ${TEAM_LABEL[picker.team]}`;
+        ? (() => {
+            const id = bans[picker.team][picker.index];
+            const name = id
+              ? champions.find((c) => c.id === id)?.name ?? id
+              : null;
+            return name ? `Ban ${name}` : "Choisir un ban";
+          })()
+        : (() => {
+            const champ = picks[picker.team][picker.index];
+            const role = ROLES[picker.index].label;
+            return champ ? `${champ.name}, ${role}` : `Choisir — ${role}`;
+          })();
 
   return (
     <>
@@ -124,6 +129,7 @@ export function DraftBoard({
           team="blue"
           label="Bleu — nous"
           version={version}
+          champions={champions}
           picks={picks.blue}
           bans={bans.blue}
           score={blueEval.score}
@@ -133,7 +139,10 @@ export function DraftBoard({
           onSuggest={(index, champ) => onSetPick("blue", index, champ)}
         />
 
-        <aside className="sticky top-2.5 border border-line bg-panel p-3">
+        <aside
+          aria-label="Analyse de la composition bleue et détail champion"
+          className="sticky top-2.5 border border-line bg-panel p-3"
+        >
           <AnalysisPanel
             evaluation={blueEval}
             profileTargets={profile.targets}
@@ -152,6 +161,7 @@ export function DraftBoard({
           team="red"
           label="Rouge — adverse"
           version={version}
+          champions={champions}
           picks={picks.red}
           bans={bans.red}
           score={redEval.score}
@@ -193,6 +203,7 @@ function TeamColumn({
   team,
   label,
   version,
+  champions,
   picks,
   bans,
   score,
@@ -204,6 +215,7 @@ function TeamColumn({
   team: TeamId;
   label: string;
   version: string;
+  champions: Champion[];
   picks: (Champion | null)[];
   bans: string[];
   score: number;
@@ -214,9 +226,17 @@ function TeamColumn({
 }) {
   const accent = team === "blue" ? "border-t-team-blue" : "border-t-team-red";
   const showSuggestions = team === "blue";
+  const champNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of champions) map.set(c.id, c.name);
+    return map;
+  }, [champions]);
 
   return (
-    <section className={`border border-line bg-panel p-2.5 border-t-2 ${accent}`}>
+    <section
+      aria-label={`Draft ${label}`}
+      className={`border border-line bg-panel p-2.5 border-t-2 ${accent}`}
+    >
       <div className="mb-2 flex items-baseline justify-between">
         <h2 className="font-cond text-base">{label}</h2>
         <span
@@ -229,16 +249,17 @@ function TeamColumn({
 
       <div className="mb-2.5 flex gap-1">
         {bans.map((id, i) => {
-          const aria = id
-            ? `Ban ${TEAM_LABEL[team]} ${i + 1} : ${id}`
-            : `Choisir le ban ${TEAM_LABEL[team]} ${i + 1}`;
+          const banName = id ? champNameById.get(id) ?? id : null;
+          const aria = banName
+            ? `Ban ${banName}`
+            : "Ban vide — choisir un champion";
           return (
             <button
               key={`${team}-ban-${i}`}
               type="button"
               aria-label={aria}
               title={aria}
-              className={`relative h-[34px] w-[34px] shrink-0 overflow-hidden border border-line bg-panel2 p-0 transition hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+              className={`relative h-11 w-11 shrink-0 overflow-hidden border border-line bg-panel2 p-0 transition hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold min-[900px]:h-[34px] min-[900px]:w-[34px] ${
                 id
                   ? "after:pointer-events-none after:absolute after:inset-0 after:bg-[linear-gradient(45deg,transparent_45%,var(--bad)_45%,var(--bad)_55%,transparent_55%)] after:opacity-85"
                   : ""
@@ -263,8 +284,8 @@ function TeamColumn({
       {ROLES.map((role, i) => {
         const champ = picks[i];
         const aria = champ
-          ? `Pick ${role.label} ${TEAM_LABEL[team]} : ${champ.name}`
-          : `Choisir le pick ${role.label} ${TEAM_LABEL[team]}`;
+          ? `${champ.name}, ${role.label}`
+          : `Emplacement vide (${role.label}) — choisir un champion`;
         const suggs = showSuggestions ? suggestions[i] : undefined;
         return (
           <div
@@ -277,7 +298,8 @@ function TeamColumn({
             <button
               type="button"
               aria-label={aria}
-              className="champ-frame h-[52px] w-[52px] shrink-0 overflow-hidden border border-line bg-panel2 p-0 transition hover:border-gold focus-visible:border-gold focus-visible:outline-none"
+              title={aria}
+              className="champ-frame h-[52px] w-[52px] shrink-0 overflow-hidden border border-line bg-panel2 p-0 transition hover:border-gold focus-visible:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
               onClick={(e) =>
                 onOpen({ team, kind: "pick", index: i }, e.currentTarget)
               }
@@ -298,7 +320,7 @@ function TeamColumn({
                   className="block h-full w-full"
                 />
               ) : (
-                <span className="block text-center text-[22px] leading-[52px] text-[#33445C]">
+                <span className="block text-center text-[22px] leading-[52px] text-dim">
                   +
                 </span>
               )}
@@ -314,7 +336,7 @@ function TeamColumn({
                       type="button"
                       title={`${c.name} — ${c.tags.map((t) => TAG_LABEL[t]).join(", ")}`}
                       aria-label={`Suggérer ${c.name} en ${role.label}`}
-                      className="h-[26px] w-[26px] overflow-hidden border border-line bg-panel2 p-0 opacity-75 transition hover:border-gold hover:opacity-100 focus-visible:border-gold focus-visible:opacity-100 focus-visible:outline-none"
+                      className="h-11 w-11 overflow-hidden border border-line bg-panel2 p-0 opacity-75 transition hover:border-gold hover:opacity-100 focus-visible:border-gold focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold min-[900px]:h-[26px] min-[900px]:w-[26px]"
                       onClick={() => onSuggest(i, c)}
                       onMouseEnter={() =>
                         onHover({ team, index: i, champ: c })

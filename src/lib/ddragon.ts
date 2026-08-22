@@ -16,8 +16,23 @@ type ChampionsResponse = {
 
 type LoadResult = { version: string; champions: Champion[] };
 
-const NETWORK_ERROR =
-  "Impossible de charger les champions depuis Data Dragon. Vérifie ta connexion et réessaie.";
+export type DDragonErrorKind = "network" | "parse" | "config";
+
+export class DDragonLoadError extends Error {
+  readonly kind: DDragonErrorKind;
+
+  constructor(kind: DDragonErrorKind, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "DDragonLoadError";
+    this.kind = kind;
+  }
+}
+
+export const DDRAGON_NETWORK_MSG =
+  "Impossible de joindre Data Dragon. Vérifie ta connexion internet, désactive un éventuel bloqueur de pub ou de tracker, puis réessaie.";
+
+export const DDRAGON_PARSE_MSG =
+  "Data Dragon a répondu mais les données champions sont illisibles. Réessaie dans quelques minutes — Riot met parfois à jour le format sans prévenir.";
 
 let pending: Promise<LoadResult> | null = null;
 
@@ -32,23 +47,42 @@ function parseCuratedTags(id: string, raw: string): Tag[] {
   });
 }
 
-async function fetchChampions(): Promise<LoadResult> {
-  let versions: string[];
-  let payload: ChampionsResponse;
+async function readJson(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch (err) {
+    throw new DDragonLoadError("parse", DDRAGON_PARSE_MSG, {
+      cause: err,
+    });
+  }
+}
 
+async function fetchChampions(): Promise<LoadResult> {
   try {
     const versionsRes = await fetch(
       "https://ddragon.leagueoflegends.com/api/versions.json",
     );
-    if (!versionsRes.ok) throw new Error("versions");
-    versions = (await versionsRes.json()) as string[];
+    if (!versionsRes.ok) {
+      throw new DDragonLoadError("network", DDRAGON_NETWORK_MSG);
+    }
 
-    const version = versions[0];
+    const versionsRaw = await readJson(versionsRes);
+    if (!Array.isArray(versionsRaw) || typeof versionsRaw[0] !== "string") {
+      throw new DDragonLoadError("parse", DDRAGON_PARSE_MSG);
+    }
+    const version = versionsRaw[0] as string;
+
     const champRes = await fetch(
       `https://ddragon.leagueoflegends.com/cdn/${version}/data/fr_FR/champion.json`,
     );
-    if (!champRes.ok) throw new Error("champions");
-    payload = (await champRes.json()) as ChampionsResponse;
+    if (!champRes.ok) {
+      throw new DDragonLoadError("network", DDRAGON_NETWORK_MSG);
+    }
+
+    const payload = (await readJson(champRes)) as ChampionsResponse;
+    if (!payload?.data || typeof payload.data !== "object") {
+      throw new DDragonLoadError("parse", DDRAGON_PARSE_MSG);
+    }
 
     const champions = Object.values(payload.data)
       .map((c) => {
@@ -70,13 +104,11 @@ async function fetchChampions(): Promise<LoadResult> {
 
     return { version, champions };
   } catch (err) {
-    if (
-      err instanceof Error &&
-      err.message.startsWith("Tag inconnu")
-    ) {
-      throw err;
+    if (err instanceof DDragonLoadError) throw err;
+    if (err instanceof Error && err.message.startsWith("Tag inconnu")) {
+      throw new DDragonLoadError("config", err.message, { cause: err });
     }
-    throw new Error(NETWORK_ERROR, { cause: err });
+    throw new DDragonLoadError("network", DDRAGON_NETWORK_MSG, { cause: err });
   }
 }
 

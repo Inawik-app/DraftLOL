@@ -70,6 +70,30 @@ function resolvePicks(
   });
 }
 
+/** Champion ids referenced in a token but absent from the current patch roster. */
+export function findMissingChampionIds(
+  compact: CompactPayload,
+  byId: Map<string, Champion>,
+): string[] {
+  const missing = new Set<string>();
+  const pickIds = [
+    ...padFiveStrings(compact.b),
+    ...padFiveStrings(compact.r),
+    ...padFiveStrings(compact.bb),
+    ...padFiveStrings(compact.rb),
+  ];
+  for (const id of pickIds) {
+    if (id && !byId.has(id)) missing.add(id);
+  }
+  return [...missing].sort((a, b) => a.localeCompare(b));
+}
+
+export function formatMissingChampionsMessage(ids: string[]): string {
+  if (!ids.length) return "";
+  const list = ids.join(", ");
+  return `Ce token référence des champions absents du patch actuel (${list}). Les emplacements concernés sont vides — remplace ces picks ou repartage un lien à jour après les avoir corrigés.`;
+}
+
 function normalizePlayers(raw: unknown): Player[] {
   const base = emptyPlayers();
   if (!Array.isArray(raw)) return base;
@@ -251,7 +275,8 @@ export function encodeRoom(state: RoomState): string {
 export function decodeRoom(
   token: string,
   champions: Champion[],
-): { ok: true; state: RoomState } | { ok: false; reason: string } {
+): | { ok: true; state: RoomState; missingChampionIds: string[] }
+  | { ok: false; reason: string } {
   try {
     const parsed = parseCompactPayload(token);
     if (!parsed.ok) return parsed;
@@ -275,6 +300,7 @@ export function decodeRoom(
     const profileKey = isProfileKey(compact.p) ? compact.p : "teamfight";
     const byId = new Map(champions.map((c) => [c.id, c]));
     const rid = typeof compact.i === "string" && compact.i.trim() ? compact.i.trim() : undefined;
+    const missingChampionIds = findMissingChampionIds(compact, byId);
 
     const state: RoomState = {
       profileKey,
@@ -290,7 +316,7 @@ export function decodeRoom(
       ...(rid ? { rid } : {}),
     };
 
-    return { ok: true, state };
+    return { ok: true, state, missingChampionIds };
   } catch {
     return {
       ok: false,

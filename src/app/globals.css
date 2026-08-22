@@ -12,7 +12,7 @@
   --red: #d8474b;
   --ok: #4fae7a;
   --warn: #d9a441;
-  --bad: #c8524f;
+  --bad: #d85a5e;
   --font-cond: var(--font-barlow-condensed), Impact, sans-serif;
   --font-body: var(--font-inter), system-ui, sans-serif;
 }
@@ -51,6 +51,16 @@ body {
 
 .champ-frame {
   clip-path: polygon(0 0, 100% 0, 100% 84%, 84% 100%, 0 100%);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+summary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Barlow_Condensed, Inter } from "next/font/google";
+import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,7 +25,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="fr"
       className={`${inter.variable} ${barlowCondensed.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-ink text-txt">{children}</body>
+      <body className="flex min-h-full flex-col bg-ink text-txt">
+        <RootErrorBoundary>{children}</RootErrorBoundary>
+      </body>
     </html>
   );
 }

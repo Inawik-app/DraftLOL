@@ -2,21 +2,31 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DraftBoard } from "@/components/DraftBoard";
+import { FailurePanel } from "@/components/FailurePanel";
 import { PlayersPanel } from "@/components/PlayersPanel";
 import { ProfileSelector } from "@/components/ProfileSelector";
+import { StatusNotice } from "@/components/StatusNotice";
 import { TokenPanel } from "@/components/TokenPanel";
 import { PROFILES } from "@/data/profiles";
-import { loadChampions } from "@/lib/ddragon";
+import {
+  DDragonLoadError,
+  loadChampions,
+} from "@/lib/ddragon";
+import { NO_PEERS_TIMEOUT_MSG, connectRoom, disconnectRoom, setChampionCatalog, subscribeRoomStatus } from "@/lib/room";
 import { scoreComp } from "@/lib/score";
+import {
+  isLocalStorageAvailable,
+  LOCAL_STORAGE_UNAVAILABLE_MSG,
+} from "@/lib/storage";
 import {
   decodeRoom,
   encodeRoom,
   deriveRoomNameFromRid,
+  formatMissingChampionsMessage,
   generateRoomId,
   replaceLocationHash,
   type RoomState,
 } from "@/lib/token";
-import { connectRoom, disconnectRoom, setChampionCatalog, subscribeRoomStatus } from "@/lib/room";
 import type { Champion, Pick, Player } from "@/lib/types";
 import { useDraft } from "@/state/useDraft";
 
@@ -63,13 +73,19 @@ function roomStatusLabel(
 export default function Home() {
   const [version, setVersion] = useState<string | null>(null);
   const [champions, setChampions] = useState<Champion[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<DDragonLoadError | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [playersOpen, setPlayersOpen] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState({
     signalingConnected: false,
     peerCount: 0,
+    noPeersTimedOut: false,
   });
+  const [patchWarning, setPatchWarning] = useState<string | null>(null);
+  const [hashNotice, setHashNotice] = useState<string | null>(null);
+  const [showStorageNotice, setShowStorageNotice] = useState(false);
+  const [showNoPeersNotice, setShowNoPeersNotice] = useState(true);
   const draft = useDraft();
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
@@ -77,26 +93,36 @@ export default function Home() {
   const lastWrittenRidRef = useRef<string | null>(null);
 
   useEffect(() => {
+    setShowStorageNotice(!isLocalStorageAvailable());
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const data = await loadChampions();
         if (cancelled) return;
+        setLoadError(null);
         setVersion(data.version);
         setChampions(data.champions);
       } catch (e) {
         if (cancelled) return;
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Impossible de charger les champions depuis Data Dragon.",
+        if (e instanceof DDragonLoadError) {
+          setLoadError(e);
+          return;
+        }
+        setLoadError(
+          new DDragonLoadError(
+            "network",
+            "Impossible de charger les champions depuis Data Dragon. Vérifie ta connexion et réessaie.",
+          ),
         );
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadAttempt]);
 
   useEffect(() => {
     if (!champions.length) return;
@@ -104,6 +130,10 @@ export default function Home() {
   }, [champions]);
 
   useEffect(() => subscribeRoomStatus(setRoomStatus), []);
+
+  useEffect(() => {
+    if (roomStatus.noPeersTimedOut) setShowNoPeersNotice(true);
+  }, [roomStatus.noPeersTimedOut]);
 
   // Restauration depuis le hash une fois le roster chargé
   useEffect(() => {
@@ -118,8 +148,16 @@ export default function Home() {
     if (result.ok) {
       setRoomId(result.state.rid ?? generateRoomId());
       draft.loadRoom(result.state);
+      if (result.missingChampionIds.length) {
+        setPatchWarning(
+          formatMissingChampionsMessage(result.missingChampionIds),
+        );
+      }
     } else {
       setRoomId(generateRoomId());
+      setHashNotice(
+        "Le lien dans l'URL est illisible ou corrompu. Une nouvelle salle a été créée — repartage le lien à ton équipe.",
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, [champions]);
@@ -156,6 +194,7 @@ export default function Home() {
       };
     }
     connectRoom(roomName);
+    setShowNoPeersNotice(true);
     return () => {
       console.log("[room] connect effect cleanup", { roomName });
       disconnectRoom();
@@ -204,6 +243,12 @@ export default function Home() {
       setRoomId(result.state.rid);
     }
     draft.loadRoom(result.state);
+    if (result.missingChampionIds.length) {
+      const warning = formatMissingChampionsMessage(result.missingChampionIds);
+      setPatchWarning(warning);
+      return { ok: true as const, patchWarning: warning };
+    }
+    setPatchWarning(null);
     return { ok: true as const };
   };
 
@@ -215,11 +260,30 @@ export default function Home() {
     setRoomId(generateRoomId());
   };
 
-  if (error) {
+  const retryLoad = () => {
+    setLoadError(null);
+    setVersion(null);
+    setChampions([]);
+    setLoadAttempt((n) => n + 1);
+  };
+
+  if (loadError) {
+    const isParse = loadError.kind === "parse";
     return (
-      <div className="mx-auto max-w-[1240px] px-3.5 py-3.5">
-        <p className="text-bad">{error}</p>
-      </div>
+      <FailurePanel
+        title={
+          isParse
+            ? "Données champions illisibles"
+            : "Data Dragon injoignable"
+        }
+        message={loadError.message}
+        actions={[
+          {
+            label: "Réessayer",
+            onClick: retryLoad,
+          },
+        ]}
+      />
     );
   }
 
@@ -235,6 +299,35 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-[1240px] px-3.5 pb-14 pt-3.5">
+      {showStorageNotice ? (
+        <StatusNotice
+          tone="info"
+          message={LOCAL_STORAGE_UNAVAILABLE_MSG}
+          onDismiss={() => setShowStorageNotice(false)}
+        />
+      ) : null}
+
+      {hashNotice ? (
+        <StatusNotice
+          message={hashNotice}
+          onDismiss={() => setHashNotice(null)}
+        />
+      ) : null}
+
+      {patchWarning ? (
+        <StatusNotice
+          message={patchWarning}
+          onDismiss={() => setPatchWarning(null)}
+        />
+      ) : null}
+
+      {roomStatus.noPeersTimedOut && showNoPeersNotice ? (
+        <StatusNotice
+          message={NO_PEERS_TIMEOUT_MSG}
+          onDismiss={() => setShowNoPeersNotice(false)}
+        />
+      ) : null}
+
       <header className="flex flex-wrap items-end justify-between gap-2.5 border-b border-line pb-2.5">
         <div>
           <h1 className="font-cond text-[26px] leading-none tracking-[0.14em]">

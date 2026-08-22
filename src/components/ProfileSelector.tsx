@@ -17,6 +17,7 @@ export function ProfileSelector({ value, onChange }: Props) {
         <button
           key={key}
           type="button"
+          aria-pressed={value === key}
           onClick={() => onChange(key)}
           className={`font-cond border px-1.5 py-0.5 text-[11px] tracking-[0.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
             value === key

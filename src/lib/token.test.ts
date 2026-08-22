@@ -3,6 +3,7 @@ import {
   encodeRoom,
   decodeRoom,
   deriveRoomName,
+  formatMissingChampionsMessage,
   generateRoomId,
   hashRoomId,
   type RoomState,
@@ -100,6 +101,7 @@ describe("encodeRoom / decodeRoom", () => {
     if (!decoded.ok) return;
     expect(decoded.state.picks.blue[0]).toBeNull();
     expect(decoded.state.picks.blue[2]?.id).toBe("Zed");
+    expect(decoded.missingChampionIds).toContain("GhostChamp");
   });
 
   it("préfixe absent", () => {
@@ -188,5 +190,11 @@ describe("encodeRoom / decodeRoom", () => {
     const token2 = encodeRoom(base);
     expect(deriveRoomName(token1)).toBe(hashRoomId(rid));
     expect(deriveRoomName(token2)).toBe(hashRoomId(rid));
+  });
+
+  it("formatMissingChampionsMessage liste les ids absents", () => {
+    expect(formatMissingChampionsMessage(["Yasuo", "Ahri"])).toMatch(/Yasuo/);
+    expect(formatMissingChampionsMessage(["Yasuo", "Ahri"])).toMatch(/Ahri/);
+    expect(formatMissingChampionsMessage([])).toBe("");
   });
 });

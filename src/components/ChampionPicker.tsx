@@ -141,7 +141,7 @@ export function ChampionPicker({
           e.preventDefault();
           last.focus();
         }
-      } else if (active === last) {
+      } else if (active === last || !panelRef.current.contains(active)) {
         e.preventDefault();
         first.focus();
       }
@@ -179,18 +179,20 @@ export function ChampionPicker({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-[rgba(4,7,12,0.82)] px-3 pt-[8vh]"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-3 pt-[8vh]">
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Fermer la sélection de champion"
+        className="absolute inset-0 bg-[rgba(4,7,12,0.82)]"
+        onClick={onClose}
+      />
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-[560px] border border-line bg-panel shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
+        className="relative z-10 w-full max-w-[560px] border border-line bg-panel shadow-[0_24px_60px_rgba(0,0,0,0.6)]"
         onKeyDown={onListKey}
       >
         <div className="flex items-center justify-between px-3 pt-2">
@@ -211,7 +213,7 @@ export function ChampionPicker({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Tape les lettres dans l'ordre — kss, mrgn, twf…"
-          className="font-cond w-full border-0 border-b border-line bg-ink px-3.5 py-3 text-base tracking-[0.06em] text-txt outline-none"
+          className="font-cond w-full border-0 border-b border-line bg-ink px-3.5 py-3 text-base tracking-[0.06em] text-txt focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold"
           aria-autocomplete="list"
           aria-controls="picker-results"
         />

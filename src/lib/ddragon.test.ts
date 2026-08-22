@@ -91,10 +91,35 @@ describe("loadChampions", () => {
       }),
     );
 
-    const { loadChampions } = await import("./ddragon");
-    await expect(loadChampions()).rejects.toThrow(
-      "Impossible de charger les champions depuis Data Dragon. Vérifie ta connexion et réessaie.",
-    );
+    const { loadChampions, DDRAGON_NETWORK_MSG, DDragonLoadError } =
+      await import("./ddragon");
+    await expect(loadChampions()).rejects.toThrow(DDRAGON_NETWORK_MSG);
+    await expect(loadChampions()).rejects.toBeInstanceOf(DDragonLoadError);
+  });
+
+  it("rejette quand le JSON champions est malformé", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/api/versions.json")) {
+        return jsonResponse([VERSION]);
+      }
+      if (url.includes(`/cdn/${VERSION}/data/fr_FR/champion.json`)) {
+        return {
+          ok: true,
+          json: async () => {
+            throw new SyntaxError("Unexpected token");
+          },
+        } as unknown as Response;
+      }
+      throw new Error(`URL inattendue: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { loadChampions, DDRAGON_PARSE_MSG, DDragonLoadError } =
+      await import("./ddragon");
+    await expect(loadChampions()).rejects.toThrow(DDRAGON_PARSE_MSG);
+    await expect(loadChampions()).rejects.toMatchObject({ kind: "parse" });
+    await expect(loadChampions()).rejects.toBeInstanceOf(DDragonLoadError);
   });
 });
 
