@@ -161,7 +161,6 @@ type CompactPlayer = {
   n?: string;
   o?: string;
   t?: Record<string, string>;
-  s?: Record<string, unknown>;
 };
 
 type CompactPayload = {
@@ -180,7 +179,6 @@ function emptyPlayers(): Player[] {
     name: "",
     opgg: "",
     tiers: {},
-    stats: {},
   }));
 }
 
@@ -242,15 +240,10 @@ function normalizePlayers(raw: unknown): Player[] {
         }
       }
     }
-    const stats =
-      row.s && typeof row.s === "object" && !Array.isArray(row.s)
-        ? (row.s as Player["stats"])
-        : {};
     return {
       name: typeof row.n === "string" ? row.n : "",
       opgg: typeof row.o === "string" ? row.o : "",
       tiers,
-      stats,
     };
   });
 }
@@ -436,7 +429,6 @@ export function encodeOfflineDraft(state: OfflineDraftState): string {
     rb: state.bans.red,
     pl: state.players.map((pl) => ({
       n: pl.name,
-      o: pl.opgg,
       t: pl.tiers,
     })),
   };
@@ -455,7 +447,6 @@ export function encodeRoom(state: RoomState): string {
     rb: state.bans.red,
     pl: state.players.map((pl) => ({
       n: pl.name,
-      o: pl.opgg,
       t: pl.tiers,
     })),
   };

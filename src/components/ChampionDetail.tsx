@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { championIconUrl } from "@/lib/ddragon";
-import { matchupFromStats } from "@/lib/playerStats";
 import { scoreComp } from "@/lib/score";
 import { TAG_LABEL } from "@/lib/tagLabels";
 import type {
@@ -84,20 +83,10 @@ export function ChampionDetail({
     .filter((r) => r.status === "low" && !champ.tags.includes(r.tag))
     .map((r) => r.tag);
 
-  const enemy = picks.red[hover.index];
   const player = players[hover.index];
   const tier =
     hover.team === "blue"
       ? (player?.tiers[champ.id] ?? null)
-      : null;
-  const matchup =
-    hover.team === "blue"
-      ? matchupFromStats(
-          player?.stats,
-          champ.id,
-          enemy?.id,
-          enemy?.name,
-        )
       : null;
 
   return (
@@ -179,38 +168,6 @@ export function ChampionDetail({
         </div>
       )}
 
-      {matchup && (
-        <div className="mt-2">
-          <div className="font-cond mb-0.5 text-[10px] tracking-[0.12em] text-dim">
-            Ton historique
-          </div>
-          <span
-            className="text-sm"
-            style={{
-              color: matchup.weakSample
-                ? "var(--dim)"
-                : matchup.wr >= 52
-                  ? "var(--ok)"
-                  : matchup.wr >= 45
-                    ? "var(--warn)"
-                    : "var(--bad)",
-            }}
-          >
-            {matchup.wr}% de winrate face à {matchup.vsName}
-          </span>
-          {matchup.games != null && (
-            <span className="ml-1.5 text-[11px] text-dim">
-              ({matchup.games} parties
-              {matchup.weakSample ? " — échantillon faible" : ""})
-            </span>
-          )}
-          {matchup.games == null && matchup.weakSample && (
-            <span className="ml-1.5 text-[11px] text-dim">
-              — échantillon faible
-            </span>
-          )}
-        </div>
-      )}
     </div>
   );
 }

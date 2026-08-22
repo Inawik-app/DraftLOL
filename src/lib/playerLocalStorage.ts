@@ -1,8 +1,15 @@
+import {
+  emptyRoleProfiles,
+  isOpggRegion,
+  type OpggRegion,
+  type RoleProfile,
+} from "@/lib/opggLink";
 import { isLocalStorageAvailable } from "@/lib/storage";
-import type { ChampStats } from "@/lib/types";
 
-const STATS_KEY = "draftboard.playerStats.v1";
+const ALLY_PROFILES_KEY = "draftboard.allyProfiles.v1";
+const OPPONENT_PROFILES_KEY = "draftboard.opponentProfiles.v1";
 const MY_ROLE_KEY = "draftboard.myRole.v1";
+const OPGG_REGION_KEY = "draftboard.opggRegion.v1";
 
 function readJson<T>(key: string): T | null {
   if (!isLocalStorageAvailable()) return null;
@@ -25,6 +32,23 @@ function writeJson(key: string, value: unknown): boolean {
   }
 }
 
+function normalizeProfileRow(raw: unknown): RoleProfile {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { name: "", opgg: "" };
+  }
+  const row = raw as { name?: unknown; opgg?: unknown };
+  return {
+    name: typeof row.name === "string" ? row.name : "",
+    opgg: typeof row.opgg === "string" ? row.opgg : "",
+  };
+}
+
+function normalizeProfileList(raw: unknown): RoleProfile[] {
+  const base = emptyRoleProfiles();
+  if (!Array.isArray(raw)) return base;
+  return base.map((fallback, i) => normalizeProfileRow(raw[i] ?? fallback));
+}
+
 export function loadMyRoleIndex(): number | null {
   const n = readJson<number>(MY_ROLE_KEY);
   if (typeof n === "number" && n >= 0 && n <= 4) return n;
@@ -35,25 +59,32 @@ export function saveMyRoleIndex(index: number): boolean {
   return writeJson(MY_ROLE_KEY, index);
 }
 
-type StatsStore = Record<string, Record<string, ChampStats>>;
-
-function loadStatsStore(): StatsStore {
-  return readJson<StatsStore>(STATS_KEY) ?? {};
+export function loadOpggRegion(): OpggRegion {
+  const raw = readJson<string>(OPGG_REGION_KEY);
+  if (raw && isOpggRegion(raw)) return raw;
+  return "EUW";
 }
 
-export function loadPlayerStats(
-  roleIndex: number,
-): Record<string, ChampStats> {
-  const store = loadStatsStore();
-  const row = store[String(roleIndex)];
-  return row && typeof row === "object" ? { ...row } : {};
+export function saveOpggRegion(region: OpggRegion): boolean {
+  return writeJson(OPGG_REGION_KEY, region);
 }
 
-export function savePlayerStats(
-  roleIndex: number,
-  stats: Record<string, ChampStats>,
-): boolean {
-  const store = loadStatsStore();
-  store[String(roleIndex)] = stats;
-  return writeJson(STATS_KEY, store);
+export function loadAllyProfiles(): RoleProfile[] {
+  return normalizeProfileList(readJson(ALLY_PROFILES_KEY));
+}
+
+export function saveAllyProfiles(profiles: RoleProfile[]): boolean {
+  return writeJson(ALLY_PROFILES_KEY, normalizeProfileList(profiles));
+}
+
+export function loadOpponentProfiles(): RoleProfile[] {
+  return normalizeProfileList(readJson(OPPONENT_PROFILES_KEY));
+}
+
+export function saveOpponentProfiles(profiles: RoleProfile[]): boolean {
+  return writeJson(OPPONENT_PROFILES_KEY, normalizeProfileList(profiles));
+}
+
+export function clearOpponentProfiles(): boolean {
+  return saveOpponentProfiles(emptyRoleProfiles());
 }

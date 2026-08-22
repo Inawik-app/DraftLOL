@@ -232,27 +232,21 @@ Cas de référence, à tester :
 
 ## 8. Données joueur
 
-Cinq joueurs, un par rôle, index fixe `0..4` = `top, jgl, mid, adc, sup`.
+Cinq joueurs alliés, un par rôle, index fixe `0..4` = `top, jgl, mid, adc, sup`. L'affinité en draft repose **uniquement** sur les tier lists personnelles construites sur `/tiers`.
 
 ```ts
 type Player = {
   name: string;
-  opgg: string;                              // lien affiché, jamais requêté côté client
+  opgg: string;                              // raccourci navigation local — jamais requêté ni parsé
   tiers: Record<string, "S" | "A" | "B">;    // championId → tier
-  stats: Record<string, ChampStats>;
 };
-
-type ChampStats = {
-  games?: number;
-  wr?: number;                    // winrate global sur le champion, 0-100
-  vs?: Record<string, number>;    // championId adverse → winrate personnel, 0-100
-};
-
 ```
 
-`stats` est saisi à la main en JSON pour l'instant. Le format est figé : une future route serverless interrogeant l'API Riot devra produire exactement cette forme.
+**Lien op.gg :** simple raccourci pour ouvrir la page du joueur dans un nouvel onglet. Aucune donnée n'en est extraite côté client (pas de fetch, pas de scraping, pas d'impact sur le score ni les suggestions). On accepte au collage une URL complète ou un Riot ID `pseudo#tag` (région configurable, défaut EUW) ; l'interface affiche toujours le pseudo, jamais l'URL brute.
 
-**Affichage des winrates de matchup :** toujours accompagné du nombre de parties. Sous 15 parties, griser et mentionner « échantillon faible ». Un winrate sur six parties n'est pas un signal, et le présenter comme tel est pire que ne rien afficher.
+**Adversaires :** cinq profils `{ name, opgg }` indexés par rôle, **strictement locaux** — hors document Yjs, hors export DRAFT1, hors seeds TL1. Vidés à chaque « Nouvelle draft ». Les profils alliés (pseudo + op.gg) persistent en localStorage entre les drafts.
+
+**Synchronisation salle :** seuls `name` et la seed TL1. (`tierSeed`) du slot choisi transitent via Yjs. Les liens op.gg et les adversaires ne sont jamais partagés.
 
 ---
 
@@ -266,7 +260,7 @@ type ChampStats = {
 **Export hors ligne** : format `DRAFT1.<payload>` (snapshot figé, sans temps réel).
 
 - `payload` = JSON à clés abrégées, compressé via `lz-string.compressToEncodedURIComponent`.
-- Contenu : profil actif, picks et bans (identifiants Data Dragon), les cinq objets joueur (pseudo, op.gg, tier lists). **Pas de `rid`**, pas de stats perso (celles-ci restent en localStorage).
+- Contenu : profil actif, picks et bans (identifiants Data Dragon), les cinq objets joueur (pseudo, tier lists). **Pas de `rid`**, pas de liens op.gg (localStorage), pas de profils adverses.
 - Le préfixe porte la version. Un décodeur rencontrant `DRAFT2.` retourne une erreur explicite.
 
 ```ts
@@ -293,7 +287,7 @@ Document partagé :
 - `Y.Map` **"draft"** (pattern A) : `profileKey`, `picks` et `bans` en valeurs JSON plates (identifiants de champions). **`connectRoom` n'écrit jamais dans la map** ; à l'arrivée, si la map contient déjà des clés, l'état distant remplace l'état React local. Seules les actions explicites écrivent : `setPick`, `setBan`, `setProfile`, `reset`, `loadRoom` (import offline avec contenu draft).
 - `Y.Map` **"players"** : une entrée par rôle (clés `"0"`…`"4"`), valeur `{ name, tierSeed }` (seed TL1.). **Chaque client écrit uniquement son propre slot** (index choisi dans l'UI). Personne n'écrit l'entrée d'un autre. À la jointure, un client lit les entrées distantes sans écraser les siennes ni celles des autres.
 
-**Hors du document partagé, strictement local :** stats personnelles et lien op.gg (localStorage par index de rôle pour les stats ; op.gg non synchronisé).
+**Hors du document partagé, strictement local :** liens op.gg alliés et adversaires (localStorage par index de rôle), profils adverses.
 
 Le site reste pleinement fonctionnel sans aucun pair connecté. Le nombre de pairs connectés est affiché (ou « Hors ligne » si le signaling est coupé) ; aucune fonctionnalité n'en dépend.
 

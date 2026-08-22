@@ -60,17 +60,10 @@ export type Evaluation = {
   counts: Record<Tag, number>;
 };
 
-export type ChampStats = {
-  games?: number;
-  wr?: number;
-  vs?: Record<string, number>;
-};
-
 export type Player = {
   name: string;
   opgg: string;
   tiers: Partial<Record<string, TierLabel>>;
-  stats: Record<string, ChampStats>;
 };
 
 const TAG_SET: ReadonlySet<string> = new Set(TAGS);

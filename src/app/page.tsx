@@ -5,6 +5,7 @@ import { AppNav } from "@/components/AppNav";
 import { DraftBoard } from "@/components/DraftBoard";
 import { FailurePanel } from "@/components/FailurePanel";
 import { OfflineDraftPanel } from "@/components/OfflineDraftPanel";
+import { OpponentsPanel } from "@/components/OpponentsPanel";
 import { PlayersPanel } from "@/components/PlayersPanel";
 import { ProfileSelector } from "@/components/ProfileSelector";
 import { RoomConnector } from "@/components/RoomConnector";
@@ -68,6 +69,7 @@ export default function Home() {
   const [loadError, setLoadError] = useState<DDragonLoadError | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [playersOpen, setPlayersOpen] = useState(false);
+  const [opponentsOpen, setOpponentsOpen] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomStatus, setRoomStatus] = useState({
     signalingConnected: false,
@@ -233,6 +235,7 @@ export default function Home() {
 
   const handleNewDraft = () => {
     draft.reset();
+    draft.clearOpponents();
   };
 
   const handleLeaveRoom = () => {
@@ -374,9 +377,20 @@ export default function Home() {
         version={version}
         players={draft.players}
         myRoleIndex={draft.myRoleIndex}
+        opggRegion={draft.opggRegion}
+        onSetOpggRegion={draft.setOpggRegion}
         onSetMyRoleIndex={draft.setMyRoleIndex}
-        onUpdatePlayer={draft.updatePlayer}
+        onUpdateAllyProfile={draft.updateAllyProfile}
         onImportPlayerTiers={draft.importPlayerTiers}
+      />
+
+      <OpponentsPanel
+        open={opponentsOpen}
+        onToggle={() => setOpponentsOpen((o) => !o)}
+        opponents={draft.opponents}
+        opggRegion={draft.opggRegion}
+        onSetOpggRegion={draft.setOpggRegion}
+        onUpdateOpponent={draft.updateOpponentProfile}
       />
 
       <RoomLinkPanel roomId={roomId} onJoinRoom={handleJoinRoom} />

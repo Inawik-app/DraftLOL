@@ -37,7 +37,6 @@ function sampleState(): RoomState {
         name: "Alice",
         opgg: "https://op.gg/alice",
         tiers: {},
-        stats: {},
       };
     }
     if (i === 2) {
@@ -45,10 +44,9 @@ function sampleState(): RoomState {
         name: "",
         opgg: "",
         tiers: { Ahri: "S" },
-        stats: { Ahri: { games: 40, wr: 55, vs: { Zed: 60 } } },
       };
     }
-    return { name: "", opgg: "", tiers: {}, stats: {} };
+    return { name: "", opgg: "", tiers: {} };
   });
   return {
     profileKey: "poke",
@@ -91,20 +89,45 @@ describe("encodeRoom / decodeRoom", () => {
     ]);
     expect(decoded.state.bans).toEqual(state.bans);
     expect(decoded.state.players[0].name).toBe("Alice");
-    expect(decoded.state.players[0].opgg).toBe("https://op.gg/alice");
+    expect(decoded.state.players[0].opgg).toBe("");
     expect(decoded.state.players[2].tiers.Ahri).toBe("S");
-    expect(decoded.state.players[2].stats).toEqual({});
   });
 
-  it("encodeOfflineDraft n'inclut pas le rid ni les stats", () => {
+  it("encodeOfflineDraft n'inclut pas le rid ni op.gg", () => {
     const state = sampleState();
     const token = encodeOfflineDraft(state);
     expect(token.startsWith("DRAFT1.")).toBe(true);
+    expect(token).not.toContain("op.gg");
     const decoded = decodeRoom(token, roster);
     expect(decoded.ok).toBe(true);
     if (!decoded.ok) return;
     expect(decoded.state.rid).toBeUndefined();
-    expect(decoded.state.players[2].stats).toEqual({});
+    expect(decoded.state.players[0].opgg).toBe("");
+  });
+
+  it("decodeRoom lit encore op.gg legacy (champ o)", async () => {
+    const lz = await import("lz-string");
+    const compact = {
+      p: "poke",
+      b: ["Ahri", "", "", "", ""],
+      r: ["", "", "", "", ""],
+      bb: ["", "", "", "", ""],
+      rb: ["", "", "", "", ""],
+      pl: [
+        { n: "Alice", o: "https://op.gg/alice", t: {} },
+        {},
+        {},
+        {},
+        {},
+      ],
+    };
+    const token =
+      "DRAFT1." +
+      lz.compressToEncodedURIComponent(JSON.stringify(compact));
+    const decoded = decodeRoom(token, roster);
+    expect(decoded.ok).toBe(true);
+    if (!decoded.ok) return;
+    expect(decoded.state.players[0].opgg).toBe("https://op.gg/alice");
   });
 
   it("extractRidFromHash lit un uuid dans #r=", () => {

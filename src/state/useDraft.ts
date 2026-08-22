@@ -4,10 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { PROFILES, type ProfileKey } from "@/data/profiles";
 import {
+  emptyRoleProfiles,
+  type OpggRegion,
+  type RoleProfile,
+} from "@/lib/opggLink";
+import {
+  clearOpponentProfiles,
+  loadAllyProfiles,
   loadMyRoleIndex,
-  loadPlayerStats,
+  loadOpggRegion,
+  loadOpponentProfiles,
+  saveAllyProfiles,
   saveMyRoleIndex,
-  savePlayerStats,
+  saveOpggRegion,
+  saveOpponentProfiles,
 } from "@/lib/playerLocalStorage";
 import {
   getChampionById,
@@ -86,29 +96,25 @@ function entryFromPlayer(player: Player): SharedPlayerEntry {
   };
 }
 
-function playerFromSharedEntry(
-  entry: SharedPlayerEntry,
-  roleIndex: number,
-  isMine: boolean,
-  localOpgg: string,
-): Player {
+function playerFromSharedEntry(entry: SharedPlayerEntry): Omit<Player, "opgg"> {
   const decoded = decodeTierSeed(entry.tierSeed);
   const tiers = decoded.ok ? tierListsToPlayerTiers(decoded.lists) : {};
   return {
     name: entry.name,
-    opgg: isMine ? localOpgg : "",
     tiers,
-    stats: isMine ? loadPlayerStats(roleIndex) : {},
   };
 }
 
-export function emptyPlayers(): Player[] {
-  return [0, 1, 2, 3, 4].map(() => ({
-    name: "",
-    opgg: "",
+function playersFromAllyProfiles(profiles: RoleProfile[]): Player[] {
+  return profiles.map((p) => ({
+    name: p.name,
+    opgg: p.opgg,
     tiers: {},
-    stats: {},
   }));
+}
+
+export function emptyPlayers(): Player[] {
+  return playersFromAllyProfiles(loadAllyProfiles());
 }
 
 function isProfileKey(value: string): value is ProfileKey {
@@ -123,12 +129,17 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
   });
   const [profileKey, setProfileKey] = useState<ProfileKey>(initialProfile);
   const [players, setPlayers] = useState<Player[]>(emptyPlayers);
+  const [opponents, setOpponents] = useState<RoleProfile[]>(() =>
+    loadOpponentProfiles(),
+  );
+  const [opggRegion, setOpggRegionState] = useState<OpggRegion>(() =>
+    loadOpggRegion(),
+  );
   const [myRoleIndex, setMyRoleIndexState] = useState<number | null>(() =>
     loadMyRoleIndex(),
   );
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [roomLive, setRoomLive] = useState(false);
-  const localOpggRef = useRef<string[]>(["", "", "", "", ""]);
   const playersRef = useRef(players);
   playersRef.current = players;
 
@@ -150,6 +161,10 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     [],
   );
 
+  const persistAllyProfiles = useCallback((next: Player[]) => {
+    saveAllyProfiles(next.map((p) => ({ name: p.name, opgg: p.opgg })));
+  }, []);
+
   const applyRemoteDraft = useCallback((payload: SharedDraftPayload) => {
     setProfileKey(
       isProfileKey(payload.profileKey) ? payload.profileKey : "teamfight",
@@ -168,15 +183,17 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     (remote: ReturnType<typeof readSharedPlayers>, ownRole: number | null) => {
       setPlayers((prev) =>
         prev.map((p, i) => {
-          if (i === ownRole) {
-            localOpggRef.current[i] = p.opgg;
-            return { ...p, stats: loadPlayerStats(i) };
-          }
+          if (i === ownRole) return p;
           const entry = remote[i];
           if (!entry) {
-            return { name: "", opgg: "", tiers: {}, stats: {} };
+            return { ...p, name: p.name, tiers: {}, opgg: p.opgg };
           }
-          return playerFromSharedEntry(entry, i, false, "");
+          const shared = playerFromSharedEntry(entry);
+          return {
+            name: shared.name,
+            opgg: p.opgg,
+            tiers: shared.tiers,
+          };
         }),
       );
     },
@@ -262,19 +279,14 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       if (index < 0 || index > 4) return;
       saveMyRoleIndex(index);
       setMyRoleIndexState(index);
-      setPlayers((prev) => {
-        const next = prev.map((p, i) =>
-          i === index ? { ...p, stats: loadPlayerStats(index) } : p,
-        );
-        const mine = next[index]!;
-        if (
-          isRoomConnected() &&
-          (mine.name || Object.keys(mine.tiers).length > 0)
-        ) {
-          writeSharedPlayer(index, entryFromPlayer(mine));
-        }
-        return next;
-      });
+      const mine = playersRef.current[index];
+      if (
+        mine &&
+        isRoomConnected() &&
+        (mine.name || Object.keys(mine.tiers).length > 0)
+      ) {
+        writeSharedPlayer(index, entryFromPlayer(mine));
+      }
     },
     [],
   );
@@ -322,25 +334,55 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     [pickIds, bans, pushSharedDraft],
   );
 
+  const updateAllyProfile = useCallback(
+    (index: number, patch: Partial<RoleProfile>) => {
+      setPlayers((prev) => {
+        const next = prev.map((p, i) => (i === index ? { ...p, ...patch } : p));
+        persistAllyProfiles(next);
+        if (myRoleIndex === index && patch.name !== undefined) {
+          publishMyPlayer(next[index]!);
+        }
+        return next;
+      });
+    },
+    [myRoleIndex, persistAllyProfiles, publishMyPlayer],
+  );
+
+  const updateOpponentProfile = useCallback(
+    (index: number, patch: Partial<RoleProfile>) => {
+      setOpponents((prev) => {
+        const next = prev.map((p, i) => (i === index ? { ...p, ...patch } : p));
+        saveOpponentProfiles(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  const setOpggRegion = useCallback((region: OpggRegion) => {
+    setOpggRegionState(region);
+    saveOpggRegion(region);
+  }, []);
+
+  const clearOpponents = useCallback(() => {
+    const empty = emptyRoleProfiles();
+    setOpponents(empty);
+    clearOpponentProfiles();
+  }, []);
+
   const updatePlayer = useCallback(
     (index: number, patch: Partial<Player>) => {
       if (myRoleIndex === null || index !== myRoleIndex) return;
       setPlayers((prev) => {
         const next = prev.map((p, i) => (i === index ? { ...p, ...patch } : p));
-        const updated = next[index]!;
-        if (patch.stats !== undefined) {
-          savePlayerStats(index, updated.stats);
-        }
-        if (patch.opgg !== undefined) {
-          localOpggRef.current[index] = updated.opgg;
-        }
+        persistAllyProfiles(next);
         if (patch.name !== undefined || patch.tiers !== undefined) {
-          publishMyPlayer(updated);
+          publishMyPlayer(next[index]!);
         }
         return next;
       });
     },
-    [myRoleIndex, publishMyPlayer],
+    [myRoleIndex, persistAllyProfiles, publishMyPlayer],
   );
 
   const loadRoom = useCallback(
@@ -358,23 +400,18 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       setProfileKey(state.profileKey);
       setPickIds(nextPickIds);
       setBans(nextBans);
-      state.players.forEach((p, i) => {
-        if (Object.keys(p.stats).length) savePlayerStats(i, p.stats);
-        localOpggRef.current[i] = p.opgg;
-      });
-      setPlayers(
-        state.players.map((p, i) => ({
-          name: p.name,
-          opgg: p.opgg,
-          tiers: { ...p.tiers },
-          stats: { ...p.stats },
-        })),
-      );
+      const merged = state.players.map((p, i) => ({
+        name: p.name,
+        opgg: loadAllyProfiles()[i]?.opgg ?? "",
+        tiers: { ...p.tiers },
+      }));
+      setPlayers(merged);
+      persistAllyProfiles(merged);
       if (hasLocalDraftContent(nextPickIds, nextBans)) {
         pushSharedDraft(state.profileKey, nextPickIds, nextBans);
       }
     },
-    [pushSharedDraft],
+    [persistAllyProfiles, pushSharedDraft],
   );
 
   const importPlayerTiers = useCallback(
@@ -417,8 +454,14 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     bans,
     profileKey,
     players,
+    opponents,
+    opggRegion,
     myRoleIndex,
     setMyRoleIndex,
+    setOpggRegion,
+    updateAllyProfile,
+    updateOpponentProfile,
+    clearOpponents,
     setPick,
     setBan,
     setProfile,

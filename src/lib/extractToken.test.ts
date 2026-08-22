@@ -23,7 +23,6 @@ function minimalState(): RoomState {
       name: "",
       opgg: "",
       tiers: {},
-      stats: {},
     })),
   };
 }

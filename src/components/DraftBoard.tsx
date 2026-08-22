@@ -179,14 +179,6 @@ export function DraftBoard({
         version={version}
         used={used}
         triggerRef={triggerRef as RefObject<HTMLElement | null>}
-        matchupContext={
-          picker?.kind === "pick" && picker.team === "blue"
-            ? {
-                player: players[picker.index],
-                enemy: picks.red[picker.index],
-              }
-            : null
-        }
         slotTier={
           picker?.kind === "pick" && picker.team === "blue"
             ? (id) => players[picker.index]?.tiers[id] ?? null

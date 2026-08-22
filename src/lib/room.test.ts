@@ -33,7 +33,6 @@ function minimalRoomState(rid: string): RoomState {
       name: "",
       opgg: "",
       tiers: {},
-      stats: {},
     })),
     rid,
   };

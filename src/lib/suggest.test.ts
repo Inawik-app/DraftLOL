@@ -20,7 +20,6 @@ function emptyPlayers(): Player[] {
     name: "",
     opgg: "",
     tiers: {},
-    stats: {},
   }));
 }
 

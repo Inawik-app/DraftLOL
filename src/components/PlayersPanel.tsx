@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { championIconUrl } from "@/lib/ddragon";
-import { parsePlayerStats } from "@/lib/playerStats";
+import type { OpggRegion, RoleProfile } from "@/lib/opggLink";
 import { tierListsToPlayerTiers } from "@/lib/tierList";
 import { decodeTierSeed } from "@/lib/tierSeed";
 import { extractToken } from "@/lib/token";
 import type { Player, TierLabel } from "@/lib/types";
+import { RoleProfileRow } from "@/components/RoleProfileRow";
 import { ROLE_LABELS } from "@/state/useDraft";
 
 const TIER_ORDER: TierLabel[] = ["S", "A", "B"];
@@ -18,8 +19,10 @@ type Props = {
   version: string;
   players: Player[];
   myRoleIndex: number | null;
+  opggRegion: OpggRegion;
+  onSetOpggRegion: (region: OpggRegion) => void;
   onSetMyRoleIndex: (index: number) => void;
-  onUpdatePlayer: (index: number, patch: Partial<Player>) => void;
+  onUpdateAllyProfile: (index: number, patch: Partial<RoleProfile>) => void;
   onImportPlayerTiers: (
     index: number,
     tiers: Record<string, TierLabel>,
@@ -32,15 +35,17 @@ export function PlayersPanel({
   version,
   players,
   myRoleIndex,
+  opggRegion,
+  onSetOpggRegion,
   onSetMyRoleIndex,
-  onUpdatePlayer,
+  onUpdateAllyProfile,
   onImportPlayerTiers,
 }: Props) {
   return (
     <section className="mt-4 border border-line bg-panel p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <h2 className="font-cond text-base">Joueurs, tier lists et stats perso</h2>
+          <h2 className="font-cond text-base">Joueurs et tier lists</h2>
           <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
             Choisis ton rôle — seul ton slot est modifiable et synchronisé en
             salle. Importe une seed TL1. sur la page{" "}
@@ -89,16 +94,34 @@ export function PlayersPanel({
               salle.
             </p>
           ) : null}
+
+          <div className="mt-2 space-y-1">
+            <p className="font-cond text-[10px] tracking-[0.1em] text-dim">
+              Équipe alliée — raccourcis op.gg (local)
+            </p>
+            {ROLE_LABELS.map((label, i) => (
+              <RoleProfileRow
+                key={`ally-${label}`}
+                roleLabel={label}
+                teamLabel="équipe alliée"
+                profile={{ name: players[i]?.name ?? "", opgg: players[i]?.opgg ?? "" }}
+                region={opggRegion}
+                showRegionSelector={i === 0}
+                onRegionChange={onSetOpggRegion}
+                onUpdate={(patch) => onUpdateAllyProfile(i, patch)}
+              />
+            ))}
+          </div>
+
           <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
             {ROLE_LABELS.map((label, i) => (
-              <PlayerCard
+              <PlayerTierCard
                 key={label}
                 roleLabel={label}
                 version={version}
                 data={players[i]}
                 editable={myRoleIndex === i}
                 tiersLink="/tiers"
-                onUpdate={(patch) => onUpdatePlayer(i, patch)}
                 onImport={(tiers) => onImportPlayerTiers(i, tiers)}
               />
             ))}
@@ -109,13 +132,12 @@ export function PlayersPanel({
   );
 }
 
-function PlayerCard({
+function PlayerTierCard({
   roleLabel,
   version,
   data,
   editable,
   tiersLink,
-  onUpdate,
   onImport,
 }: {
   roleLabel: string;
@@ -123,13 +145,11 @@ function PlayerCard({
   data: Player;
   editable: boolean;
   tiersLink: string;
-  onUpdate: (patch: Partial<Player>) => void;
   onImport: (tiers: Record<string, TierLabel>) => void;
 }) {
   const [seedIn, setSeedIn] = useState("");
   const [importError, setImportError] = useState("");
   const [importOk, setImportOk] = useState("");
-  const [statsInvalid, setStatsInvalid] = useState(false);
 
   const pool = Object.entries(data.tiers).sort(
     (a, b) =>
@@ -183,38 +203,6 @@ function PlayerCard({
           </Link>
         ) : null}
       </div>
-      {editable ? (
-        <>
-          <input
-            className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
-            placeholder="Pseudo"
-            value={data.name}
-            onChange={(e) => onUpdate({ name: e.target.value })}
-          />
-          <input
-            className="mb-1 w-full border border-line bg-ink px-1.5 py-1 text-xs text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
-            placeholder="Lien op.gg / u.gg"
-            value={data.opgg}
-            onChange={(e) => onUpdate({ opgg: e.target.value })}
-          />
-        </>
-      ) : (
-        <p className="mb-1 text-xs text-txt">
-          {data.name.trim() || (
-            <span className="text-dim">En attente du joueur…</span>
-          )}
-        </p>
-      )}
-      {editable && data.opgg.trim() ? (
-        <a
-          href={data.opgg}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mb-1 block truncate text-[11px] text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-        >
-          {data.opgg}
-        </a>
-      ) : null}
 
       {editable ? (
         <div className="mb-1 flex gap-1.5">
@@ -281,35 +269,6 @@ function PlayerCard({
           </>
         )}
       </div>
-
-      {editable ? (
-        <details className="mt-1.5">
-          <summary className="font-cond cursor-pointer text-[11px] tracking-[0.1em] text-dim">
-            Stats perso (JSON, local uniquement)
-          </summary>
-          <textarea
-            rows={4}
-            className={`mt-1 w-full resize-y border bg-ink px-1.5 py-1 font-mono text-[10px] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold ${
-              statsInvalid ? "border-bad" : "border-line"
-            }`}
-            placeholder={`{"Ahri":{"games":42,"wr":57,"vs":{"Zed":45,"Syndra":63}}}`}
-            defaultValue={
-              Object.keys(data.stats || {}).length
-                ? JSON.stringify(data.stats)
-                : ""
-            }
-            onBlur={(e) => {
-              const result = parsePlayerStats(e.target.value);
-              if (!result.ok) {
-                setStatsInvalid(true);
-                return;
-              }
-              setStatsInvalid(false);
-              onUpdate({ stats: result.stats });
-            }}
-          />
-        </details>
-      ) : null}
     </div>
   );
 }

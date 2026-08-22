@@ -10,12 +10,8 @@ import {
   type RefObject,
 } from "react";
 import { championIconUrl } from "@/lib/ddragon";
-import {
-  matchupFromStats,
-  type MatchupInfo,
-} from "@/lib/playerStats";
 import { subsequenceScore } from "@/lib/search";
-import type { Champion, Player, TierLabel } from "@/lib/types";
+import type { Champion, TierLabel } from "@/lib/types";
 
 export type PickerTarget = {
   team: "blue" | "red";
@@ -30,11 +26,6 @@ type Props = {
   version: string;
   used: Set<string>;
   triggerRef: RefObject<HTMLElement | null>;
-  /** Pick allié uniquement : joueur du rôle + adversaire du même rôle */
-  matchupContext?: {
-    player: Player;
-    enemy: Champion | null;
-  } | null;
   slotTier?: (champId: string) => TierLabel | null;
   onPick: (champ: Champion | null) => void;
   onClose: () => void;
@@ -48,36 +39,6 @@ function focusableWithin(root: HTMLElement): HTMLElement[] {
   ).filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
 }
 
-function MatchupBadge({ info }: { info: MatchupInfo }) {
-  const color = info.weakSample
-    ? "var(--dim)"
-    : info.wr >= 52
-      ? "var(--ok)"
-      : info.wr >= 45
-        ? "var(--warn)"
-        : "var(--bad)";
-  return (
-    <span className="text-right text-[10px]" style={{ color }}>
-      {info.wr}% vs {info.vsName}
-      {info.games != null && (
-        <>
-          <br />
-          <span className="text-dim">
-            {info.games} part.
-            {info.weakSample ? " · échantillon faible" : ""}
-          </span>
-        </>
-      )}
-      {info.games == null && info.weakSample && (
-        <>
-          <br />
-          <span className="text-dim">échantillon faible</span>
-        </>
-      )}
-    </span>
-  );
-}
-
 export function ChampionPicker({
   open,
   title,
@@ -85,7 +46,6 @@ export function ChampionPicker({
   version,
   used,
   triggerRef,
-  matchupContext,
   slotTier,
   onPick,
   onClose,
@@ -225,15 +185,6 @@ export function ChampionPicker({
         >
           {results.map((c, i) => {
             const tier = slotTier?.(c.id) ?? null;
-            const matchup =
-              matchupContext?.enemy != null
-                ? matchupFromStats(
-                    matchupContext.player.stats,
-                    c.id,
-                    matchupContext.enemy.id,
-                    matchupContext.enemy.name,
-                  )
-                : null;
             return (
               <button
                 key={c.id}
@@ -262,7 +213,6 @@ export function ChampionPicker({
                     </span>
                   )}
                 </span>
-                {matchup && <MatchupBadge info={matchup} />}
               </button>
             );
           })}
