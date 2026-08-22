@@ -8,6 +8,7 @@ import { PlayerProfilesSection } from "@/components/PlayerProfilesSection";
 import { ProfileSelector } from "@/components/ProfileSelector";
 import { RoomConnector } from "@/components/RoomConnector";
 import { RoomLinkPanel } from "@/components/RoomLinkPanel";
+import { SeriesControls } from "@/components/SeriesControls";
 import { StatusNotice } from "@/components/StatusNotice";
 import { PROFILES } from "@/data/profiles";
 import {
@@ -168,6 +169,11 @@ export default function Home() {
     [draft.picks.red, profile],
   );
 
+  const canExportSeries =
+    draft.series.active ||
+    draft.series.games.length > 0 ||
+    draft.lastTerminatedSeries !== null;
+
   const handleJoinRoom = (rid: string) => {
     lastWrittenRidRef.current = null;
     setRoomId(rid);
@@ -175,7 +181,7 @@ export default function Home() {
   };
 
   const handleNewDraft = () => {
-    draft.reset();
+    draft.resetBoard();
     draft.clearOpponents();
   };
 
@@ -249,25 +255,38 @@ export default function Home() {
             Patch {version} · {champions.length} champions · aucune donnée stockée
           </p>
         </div>
-        <div className="flex items-end gap-2.5">
-          <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
-            {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
-          </p>
-          <div className="flex gap-1.5">
-            <button
-              type="button"
-              onClick={handleLeaveRoom}
-              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              Quitter la salle
-            </button>
-            <button
-              type="button"
-              onClick={handleNewDraft}
-              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-            >
-              Nouvelle draft
-            </button>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-end gap-2.5">
+            <p className="font-cond text-[11px] tracking-[0.08em] text-dim">
+              {roomStatusLabel(roomStatus.signalingConnected, roomStatus.peerCount)}
+            </p>
+            <SeriesControls
+              series={draft.series}
+              lockedCount={draft.locked.size}
+              canExport={canExportSeries}
+              onToggleSeries={draft.toggleSeries}
+              onSetLockScope={draft.setLockScope}
+              onValidateGame={draft.validateGame}
+              onEndSeries={draft.endSeries}
+              onExport={draft.exportSeriesPayload}
+              onImport={draft.importSeries}
+            />
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={handleLeaveRoom}
+                className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              >
+                Quitter la salle
+              </button>
+              <button
+                type="button"
+                onClick={handleNewDraft}
+                className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              >
+                Nouvelle draft
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -283,6 +302,8 @@ export default function Home() {
         picks={draft.picks}
         bans={draft.bans}
         used={draft.used}
+        locked={draft.locked}
+        lockedByGame={draft.lockedByGame}
         players={draft.players}
         profile={profile}
         blueEval={blueEval}
@@ -295,10 +316,8 @@ export default function Home() {
         version={version}
         players={draft.players}
         opponents={draft.opponents}
-        myRoleIndex={draft.myRoleIndex}
         opggRegion={draft.opggRegion}
         onSetOpggRegion={draft.setOpggRegion}
-        onSetMyRoleIndex={draft.setMyRoleIndex}
         onUpdateAllyProfile={draft.updateAllyProfile}
         onUpdateOpponent={draft.updateOpponentProfile}
         onImportPlayerTiers={draft.importPlayerTiers}

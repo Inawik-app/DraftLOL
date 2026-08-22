@@ -16,10 +16,8 @@ const TIER_ORDER: TierLabel[] = ["S", "A", "B"];
 type Props = {
   version: string;
   players: Player[];
-  myRoleIndex: number | null;
   opggRegion: OpggRegion;
   onSetOpggRegion: (region: OpggRegion) => void;
-  onSetMyRoleIndex: (index: number) => void;
   onUpdateAllyProfile: (index: number, patch: Partial<RoleProfile>) => void;
   onImportPlayerTiers: (
     index: number,
@@ -31,10 +29,8 @@ type Props = {
 export function PlayersPanel({
   version,
   players,
-  myRoleIndex,
   opggRegion,
   onSetOpggRegion,
-  onSetMyRoleIndex,
   onUpdateAllyProfile,
   onImportPlayerTiers,
   embedded = false,
@@ -46,8 +42,8 @@ export function PlayersPanel({
       <div>
         <h2 className="font-cond text-base">Joueurs et tier lists</h2>
         <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
-          Choisis ton rôle — seul ton slot est modifiable et synchronisé en
-          salle. Importe une seed TL1. sur la page{" "}
+          Profils alliés synchronisés en salle. Importe une seed TL1. sur la
+          page{" "}
           <Link
             href="/tiers"
             className="text-gold underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
@@ -58,63 +54,36 @@ export function PlayersPanel({
         </p>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
-            <span className="font-cond self-center text-[11px] tracking-[0.1em] text-dim">
-              Mon rôle :
-            </span>
-            {ROLE_LABELS.map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => onSetMyRoleIndex(i)}
-                className={`font-cond border px-2 py-1 text-[11px] tracking-[0.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
-                  myRoleIndex === i
-                    ? "border-gold bg-ink text-gold"
-                    : "border-line bg-panel2 text-txt hover:border-gold hover:text-gold"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {myRoleIndex === null ? (
-            <p className="mt-2 text-[11px] text-dim">
-              Sélectionne ton rôle pour publier ton pseudo et ta tier list en
-              salle.
-            </p>
-          ) : null}
+      <div className="mt-2 space-y-1">
+        <p className="font-cond text-[10px] tracking-[0.1em] text-dim">
+          Équipe alliée — raccourcis op.gg (local)
+        </p>
+        {ROLE_LABELS.map((label, i) => (
+          <RoleProfileRow
+            key={`ally-${label}`}
+            roleLabel={label}
+            teamLabel="équipe alliée"
+            profile={{ name: players[i]?.name ?? "", opgg: players[i]?.opgg ?? "" }}
+            region={opggRegion}
+            showRegionSelector={i === 0}
+            onRegionChange={onSetOpggRegion}
+            onUpdate={(patch) => onUpdateAllyProfile(i, patch)}
+          />
+        ))}
+      </div>
 
-          <div className="mt-2 space-y-1">
-            <p className="font-cond text-[10px] tracking-[0.1em] text-dim">
-              Équipe alliée — raccourcis op.gg (local)
-            </p>
-            {ROLE_LABELS.map((label, i) => (
-              <RoleProfileRow
-                key={`ally-${label}`}
-                roleLabel={label}
-                teamLabel="équipe alliée"
-                profile={{ name: players[i]?.name ?? "", opgg: players[i]?.opgg ?? "" }}
-                region={opggRegion}
-                showRegionSelector={i === 0}
-                onRegionChange={onSetOpggRegion}
-                onUpdate={(patch) => onUpdateAllyProfile(i, patch)}
-              />
-            ))}
-          </div>
-
-          <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
-            {ROLE_LABELS.map((label, i) => (
-              <PlayerTierCard
-                key={label}
-                roleLabel={label}
-                version={version}
-                data={players[i]}
-                editable={myRoleIndex === i}
-                tiersLink="/tiers"
-                onImport={(tiers) => onImportPlayerTiers(i, tiers)}
-              />
-            ))}
-          </div>
+      <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-2.5">
+        {ROLE_LABELS.map((label, i) => (
+          <PlayerTierCard
+            key={label}
+            roleLabel={label}
+            version={version}
+            data={players[i]}
+            tiersLink="/tiers"
+            onImport={(tiers) => onImportPlayerTiers(i, tiers)}
+          />
+        ))}
+      </div>
     </section>
   );
 }
@@ -123,14 +92,12 @@ function PlayerTierCard({
   roleLabel,
   version,
   data,
-  editable,
   tiersLink,
   onImport,
 }: {
   roleLabel: string;
   version: string;
   data: Player;
-  editable: boolean;
   tiersLink: string;
   onImport: (tiers: Record<string, TierLabel>) => void;
 }) {
@@ -177,42 +144,38 @@ function PlayerTierCard({
       <div className="flex items-baseline justify-between gap-2">
         <div className="font-cond text-[11px] tracking-[0.1em] text-gold">
           {roleLabel}
-          {!editable && data.name ? (
+          {data.name ? (
             <span className="ml-1 text-dim">· {data.name}</span>
           ) : null}
         </div>
-        {editable ? (
-          <Link
-            href={tiersLink}
-            className="font-cond text-[10px] tracking-[0.08em] text-dim underline-offset-2 hover:text-gold hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          >
-            Éditer →
-          </Link>
-        ) : null}
+        <Link
+          href={tiersLink}
+          className="font-cond text-[10px] tracking-[0.08em] text-dim underline-offset-2 hover:text-gold hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        >
+          Éditer →
+        </Link>
       </div>
 
-      {editable ? (
-        <div className="mb-1 flex gap-1.5">
-          <input
-            value={seedIn}
-            onChange={(e) => {
-              setSeedIn(e.target.value);
-              setImportError("");
-            }}
-            placeholder="Coller seed TL1.…"
-            className="min-w-0 flex-1 border border-line bg-ink px-1.5 py-1 font-mono text-[10px] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
-            aria-label={`Importer seed TL1 pour ${roleLabel}`}
-          />
-          <button
-            type="button"
-            onClick={loadSeed}
-            disabled={!seedIn.trim()}
-            className="font-cond shrink-0 border border-line bg-ink px-2 py-1 text-[11px] tracking-[0.08em] text-txt hover:border-gold hover:text-gold disabled:text-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
-          >
-            Importer
-          </button>
-        </div>
-      ) : null}
+      <div className="mb-1 flex gap-1.5">
+        <input
+          value={seedIn}
+          onChange={(e) => {
+            setSeedIn(e.target.value);
+            setImportError("");
+          }}
+          placeholder="Coller seed TL1.…"
+          className="min-w-0 flex-1 border border-line bg-ink px-1.5 py-1 font-mono text-[10px] text-txt focus-visible:outline focus-visible:outline-1 focus-visible:outline-gold"
+          aria-label={`Importer seed TL1 pour ${roleLabel}`}
+        />
+        <button
+          type="button"
+          onClick={loadSeed}
+          disabled={!seedIn.trim()}
+          className="font-cond shrink-0 border border-line bg-ink px-2 py-1 text-[11px] tracking-[0.08em] text-txt hover:border-gold hover:text-gold disabled:text-dim focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+        >
+          Importer
+        </button>
+      </div>
       {importError ? (
         <p className="mb-1 text-[10px] text-bad" role="alert">
           {importError}

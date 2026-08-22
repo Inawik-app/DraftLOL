@@ -5,6 +5,7 @@ import {
   deriveRoomNameFromRid,
   extractRidFromHash,
 } from "@/lib/token";
+import { normalizeSeries, type SeriesState } from "@/lib/series";
 import type { Champion } from "./types";
 
 export const DEFAULT_SIGNALING_URLS = ["wss://y-webrtc-eu.fly.dev"] as const;
@@ -23,6 +24,7 @@ export type SharedDraftPayload = {
   profileKey: ProfileKey;
   picks: TeamPickIds;
   bans: TeamBanIds;
+  series: SeriesState;
 };
 
 export type RoomStatus = {
@@ -203,6 +205,7 @@ export function readSharedDraft(map: Y.Map<unknown>): SharedDraftPayload | null 
     profileKey,
     picks: normalizeTeamPickIds(map.get("picks")),
     bans: normalizeTeamBanIds(map.get("bans")),
+    series: normalizeSeries(map.get("series")),
   };
 }
 
@@ -229,7 +232,7 @@ export function readSharedPlayers(map: Y.Map<unknown>): SharedPlayersByRole {
 }
 
 /**
- * Writes one role slot inside a transaction. Only the owning client should call this.
+ * Writes one role slot inside a transaction. Any client may update any slot (last-write-wins).
  * connectRoom never calls this.
  */
 export function writeSharedPlayer(
@@ -284,20 +287,21 @@ export function writeSharedDraft(payload: SharedDraftPayload): void {
     console.log("[room] write SKIP (no map)", {
       hasYdoc: !!ydoc,
       hasMap: !!draftMap,
-      keys: ["profileKey", "picks", "bans"],
+      keys: ["profileKey", "picks", "bans", "series"],
     });
     return;
   }
   console.log("[room] write", {
     roomName: activeRoomName,
     origin: LOCAL_ORIGIN,
-    keys: ["profileKey", "picks", "bans"],
+    keys: ["profileKey", "picks", "bans", "series"],
     mapClientID: ydoc.clientID,
   });
   ydoc.transact(() => {
     draftMap!.set("profileKey", payload.profileKey);
     draftMap!.set("picks", payload.picks);
     draftMap!.set("bans", payload.bans);
+    draftMap!.set("series", payload.series);
   }, LOCAL_ORIGIN);
 }
 
@@ -400,6 +404,7 @@ export function writeSharedDraftToDoc(
     map.set("profileKey", payload.profileKey);
     map.set("picks", payload.picks);
     map.set("bans", payload.bans);
+    map.set("series", payload.series);
   }, origin);
 }
 

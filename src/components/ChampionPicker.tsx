@@ -26,6 +26,7 @@ type Props = {
   champions: Champion[];
   version: string;
   used: Set<string>;
+  locked: Map<string, number>;
   triggerRef: RefObject<HTMLElement | null>;
   slotTier?: (champId: string) => TierLabel | null;
   onPick: (champ: Champion | null) => void;
@@ -46,6 +47,7 @@ export function ChampionPicker({
   champions,
   version,
   used,
+  locked,
   triggerRef,
   slotTier,
   onPick,
@@ -186,18 +188,25 @@ export function ChampionPicker({
         >
           {results.map((c, i) => {
             const tier = slotTier?.(c.id) ?? null;
+            const lockGame = locked.get(c.id);
+            const isLocked = lockGame !== undefined;
             return (
               <button
                 key={c.id}
                 type="button"
                 role="option"
                 aria-selected={i === selected}
+                disabled={isLocked}
                 className={`flex w-full items-center gap-2 border-0 border-b border-[#141C27] px-2.5 py-1.5 text-left text-txt transition ${
-                  i === selected ? "bg-panel2" : "bg-transparent"
+                  isLocked
+                    ? "cursor-not-allowed brightness-50 grayscale opacity-60"
+                    : i === selected
+                      ? "bg-panel2"
+                      : "bg-transparent"
                 } focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold`}
                 style={{ minHeight: "58px" }}
-                onMouseEnter={() => setSelected(i)}
-                onClick={() => onPick(c)}
+                onMouseEnter={() => !isLocked && setSelected(i)}
+                onClick={() => !isLocked && onPick(c)}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -217,6 +226,11 @@ export function ChampionPicker({
                     ) : null}
                   </span>
                   <RoleTags championId={c.id} />
+                  {isLocked ? (
+                    <span className="font-cond text-[9px] tracking-[0.08em] text-dim">
+                      Game {lockGame}
+                    </span>
+                  ) : null}
                 </span>
               </button>
             );

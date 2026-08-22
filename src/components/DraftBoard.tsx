@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type RefObject } from "react";
+import { LockedChampionsPanel } from "@/components/LockedChampionsPanel";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import {
   ChampionDetail,
@@ -33,6 +34,8 @@ type Props = {
   picks: { blue: (Champion | null)[]; red: (Champion | null)[] };
   bans: { blue: string[]; red: string[] };
   used: Set<string>;
+  locked: Map<string, number>;
+  lockedByGame: Map<number, string[]>;
   players: Player[];
   profile: Profile;
   blueEval: Evaluation;
@@ -58,6 +61,8 @@ export function DraftBoard({
   picks,
   bans,
   used,
+  locked,
+  lockedByGame,
   players,
   profile,
   blueEval,
@@ -70,9 +75,15 @@ export function DraftBoard({
   const triggerRef = useRef<HTMLElement | null>(null);
 
   const available = useMemo(
-    () => champions.filter((c) => !used.has(c.id)),
-    [champions, used],
+    () => champions.filter((c) => !used.has(c.id) && !locked.has(c.id)),
+    [champions, used, locked],
   );
+
+  const champNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of champions) map.set(c.id, c.name);
+    return map;
+  }, [champions]);
 
   const blueSlots = useMemo(
     () => toSlots(picks.blue, players),
@@ -172,12 +183,19 @@ export function DraftBoard({
         />
       </div>
 
+      <LockedChampionsPanel
+        version={version}
+        lockedByGame={lockedByGame}
+        champNameById={champNameById}
+      />
+
       <ChampionPicker
         open={picker !== null}
         title={pickerTitle}
         champions={champions}
         version={version}
         used={used}
+        locked={locked}
         triggerRef={triggerRef as RefObject<HTMLElement | null>}
         slotTier={
           picker?.kind === "pick" && picker.team === "blue"

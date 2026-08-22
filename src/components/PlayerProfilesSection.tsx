@@ -9,10 +9,8 @@ type Props = {
   version: string;
   players: Player[];
   opponents: RoleProfile[];
-  myRoleIndex: number | null;
   opggRegion: OpggRegion;
   onSetOpggRegion: (region: OpggRegion) => void;
-  onSetMyRoleIndex: (index: number) => void;
   onUpdateAllyProfile: (index: number, patch: Partial<RoleProfile>) => void;
   onUpdateOpponent: (index: number, patch: Partial<RoleProfile>) => void;
   onImportPlayerTiers: (
@@ -27,10 +25,8 @@ export function PlayerProfilesSection(props: Props) {
       <PlayersPanel
         version={props.version}
         players={props.players}
-        myRoleIndex={props.myRoleIndex}
         opggRegion={props.opggRegion}
         onSetOpggRegion={props.onSetOpggRegion}
-        onSetMyRoleIndex={props.onSetMyRoleIndex}
         onUpdateAllyProfile={props.onUpdateAllyProfile}
         onImportPlayerTiers={props.onImportPlayerTiers}
         embedded

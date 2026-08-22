@@ -11,14 +11,30 @@ import {
 import {
   clearOpponentProfiles,
   loadAllyProfiles,
-  loadMyRoleIndex,
   loadOpggRegion,
   loadOpponentProfiles,
   saveAllyProfiles,
-  saveMyRoleIndex,
   saveOpggRegion,
   saveOpponentProfiles,
 } from "@/lib/playerLocalStorage";
+import {
+  archiveCurrentGame,
+  buildSeriesExport,
+  computeLockedChampions,
+  endSeriesState,
+  lockedChampionsByGame,
+  parseSeriesImport,
+  startSeries,
+  type GameResult,
+  type LockScope,
+  type SeriesState,
+  EMPTY_SERIES,
+} from "@/lib/series";
+import {
+  clearLastTerminatedSeries,
+  loadLastTerminatedSeries,
+  saveLastTerminatedSeries,
+} from "@/lib/seriesStorage";
 import {
   getChampionById,
   getDraftMap,
@@ -61,32 +77,6 @@ function resolvePickIds(ids: string[]): TeamChampions {
   });
 }
 
-function picksToIds(picks: { blue: TeamChampions; red: TeamChampions }): TeamPickIds {
-  return {
-    blue: picks.blue.map((p) => p?.id ?? ""),
-    red: picks.red.map((p) => p?.id ?? ""),
-  };
-}
-
-function hasLocalDraftContent(
-  pickIds: TeamPickIds,
-  bans: { blue: TeamBans; red: TeamBans },
-): boolean {
-  for (const team of ["blue", "red"] as const) {
-    if (pickIds[team].some((id) => id)) return true;
-    if (bans[team].some((id) => id)) return true;
-  }
-  return false;
-}
-
-function sharedPayload(
-  profileKey: ProfileKey,
-  pickIds: TeamPickIds,
-  bans: { blue: TeamBans; red: TeamBans },
-): SharedDraftPayload {
-  return { profileKey, picks: pickIds, bans };
-}
-
 function entryFromPlayer(player: Player): SharedPlayerEntry {
   return {
     name: player.name,
@@ -121,6 +111,15 @@ function isProfileKey(value: string): value is ProfileKey {
   return Object.prototype.hasOwnProperty.call(PROFILES, value);
 }
 
+function sharedPayload(
+  profileKey: ProfileKey,
+  pickIds: TeamPickIds,
+  bans: { blue: TeamBans; red: TeamBans },
+  series: SeriesState,
+): SharedDraftPayload {
+  return { profileKey, picks: pickIds, bans, series };
+}
+
 export function useDraft(initialProfile: ProfileKey = "teamfight") {
   const [pickIds, setPickIds] = useState(emptyPickIds);
   const [bans, setBans] = useState({
@@ -128,6 +127,9 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     red: emptyBanIds(),
   });
   const [profileKey, setProfileKey] = useState<ProfileKey>(initialProfile);
+  const [series, setSeries] = useState<SeriesState>({ ...EMPTY_SERIES });
+  const [lastTerminatedSeries, setLastTerminatedSeries] =
+    useState<SeriesState | null>(null);
   const [players, setPlayers] = useState<Player[]>(emptyPlayers);
   const [opponents, setOpponents] = useState<RoleProfile[]>(() =>
     loadOpponentProfiles(),
@@ -135,13 +137,14 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
   const [opggRegion, setOpggRegionState] = useState<OpggRegion>(() =>
     loadOpggRegion(),
   );
-  const [myRoleIndex, setMyRoleIndexState] = useState<number | null>(() =>
-    loadMyRoleIndex(),
-  );
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [roomLive, setRoomLive] = useState(false);
   const playersRef = useRef(players);
   playersRef.current = players;
+  const seriesRef = useRef(series);
+  seriesRef.current = series;
+  const profileKeyRef = useRef(profileKey);
+  profileKeyRef.current = profileKey;
 
   const picks = useMemo(
     () => ({
@@ -149,6 +152,12 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       red: resolvePickIds(pickIds.red),
     }),
     [pickIds, catalogVersion],
+  );
+
+  const locked = useMemo(() => computeLockedChampions(series), [series]);
+  const lockedByGame = useMemo(
+    () => lockedChampionsByGame(series),
+    [series],
   );
 
   useEffect(() => subscribeChampionCatalog(() => setCatalogVersion((v) => v + 1)), []);
@@ -161,9 +170,33 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     [],
   );
 
+  useEffect(() => {
+    setLastTerminatedSeries(loadLastTerminatedSeries());
+  }, []);
+
   const persistAllyProfiles = useCallback((next: Player[]) => {
     saveAllyProfiles(next.map((p) => ({ name: p.name, opgg: p.opgg })));
   }, []);
+
+  const publishPlayerSlot = useCallback((index: number, player: Player) => {
+    if (!isRoomConnected()) return;
+    writeSharedPlayer(index, entryFromPlayer(player));
+  }, []);
+
+  const pushSharedDraft = useCallback(
+    (
+      nextProfile: ProfileKey,
+      nextPickIds: TeamPickIds,
+      nextBans: { blue: TeamBans; red: TeamBans },
+      nextSeries: SeriesState,
+    ) => {
+      if (!isRoomConnected() || !getDraftMap()) return;
+      writeSharedDraft(
+        sharedPayload(nextProfile, nextPickIds, nextBans, nextSeries),
+      );
+    },
+    [],
+  );
 
   const applyRemoteDraft = useCallback((payload: SharedDraftPayload) => {
     setProfileKey(
@@ -177,17 +210,15 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       blue: [...payload.bans.blue],
       red: [...payload.bans.red],
     });
+    setSeries(payload.series);
   }, []);
 
   const applyRemotePlayers = useCallback(
-    (remote: ReturnType<typeof readSharedPlayers>, ownRole: number | null) => {
+    (remote: ReturnType<typeof readSharedPlayers>) => {
       setPlayers((prev) =>
         prev.map((p, i) => {
-          if (i === ownRole) return p;
           const entry = remote[i];
-          if (!entry) {
-            return { ...p, name: p.name, tiers: {}, opgg: p.opgg };
-          }
+          if (!entry) return p;
           const shared = playerFromSharedEntry(entry);
           return {
             name: shared.name,
@@ -196,26 +227,6 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
           };
         }),
       );
-    },
-    [],
-  );
-
-  const publishMyPlayer = useCallback(
-    (player: Player) => {
-      if (myRoleIndex === null || !isRoomConnected()) return;
-      writeSharedPlayer(myRoleIndex, entryFromPlayer(player));
-    },
-    [myRoleIndex],
-  );
-
-  const pushSharedDraft = useCallback(
-    (
-      nextProfile: ProfileKey,
-      nextPickIds: TeamPickIds,
-      nextBans: { blue: TeamBans; red: TeamBans },
-    ) => {
-      if (!isRoomConnected() || !getDraftMap()) return;
-      writeSharedDraft(sharedPayload(nextProfile, nextPickIds, nextBans));
     },
     [],
   );
@@ -256,13 +267,13 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
 
       const onMapChange = (_event: Y.YMapEvent<unknown>, tr: Y.Transaction) => {
         if (tr.origin === LOCAL_ORIGIN) return;
-        applyRemotePlayers(readSharedPlayers(map), myRoleIndex);
+        applyRemotePlayers(readSharedPlayers(map));
       };
 
       map.observe(onMapChange);
 
       if (map.size > 0) {
-        applyRemotePlayers(readSharedPlayers(map), myRoleIndex);
+        applyRemotePlayers(readSharedPlayers(map));
       }
 
       cleanupObserve = () => map.unobserve(onMapChange);
@@ -272,31 +283,7 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       cleanupObserve?.();
       unsubMap();
     };
-  }, [applyRemotePlayers, myRoleIndex]);
-
-  const setMyRoleIndex = useCallback(
-    (index: number) => {
-      if (index < 0 || index > 4) return;
-      saveMyRoleIndex(index);
-      setMyRoleIndexState(index);
-      const mine = playersRef.current[index];
-      if (
-        mine &&
-        isRoomConnected() &&
-        (mine.name || Object.keys(mine.tiers).length > 0)
-      ) {
-        writeSharedPlayer(index, entryFromPlayer(mine));
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!roomLive || myRoleIndex === null) return;
-    const player = playersRef.current[myRoleIndex];
-    if (!player.name && Object.keys(player.tiers).length === 0) return;
-    publishMyPlayer(player);
-  }, [roomLive, myRoleIndex, publishMyPlayer]);
+  }, [applyRemotePlayers]);
 
   const setPick = useCallback(
     (team: TeamId, index: number, champ: Champion | null) => {
@@ -305,11 +292,11 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
           ...prev,
           [team]: prev[team].map((id, i) => (i === index ? (champ?.id ?? "") : id)),
         };
-        pushSharedDraft(profileKey, next, bans);
+        pushSharedDraft(profileKey, next, bans, series);
         return next;
       });
     },
-    [bans, profileKey, pushSharedDraft],
+    [bans, profileKey, pushSharedDraft, series],
   );
 
   const setBan = useCallback(
@@ -319,19 +306,19 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
           ...prev,
           [team]: prev[team].map((v, i) => (i === index ? id : v)),
         };
-        pushSharedDraft(profileKey, pickIds, next);
+        pushSharedDraft(profileKey, pickIds, next, series);
         return next;
       });
     },
-    [pickIds, profileKey, pushSharedDraft],
+    [pickIds, profileKey, pushSharedDraft, series],
   );
 
   const setProfile = useCallback(
     (key: ProfileKey) => {
       setProfileKey(key);
-      pushSharedDraft(key, pickIds, bans);
+      pushSharedDraft(key, pickIds, bans, series);
     },
-    [pickIds, bans, pushSharedDraft],
+    [pickIds, bans, pushSharedDraft, series],
   );
 
   const updateAllyProfile = useCallback(
@@ -339,13 +326,13 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
       setPlayers((prev) => {
         const next = prev.map((p, i) => (i === index ? { ...p, ...patch } : p));
         persistAllyProfiles(next);
-        if (myRoleIndex === index && patch.name !== undefined) {
-          publishMyPlayer(next[index]!);
+        if (patch.name !== undefined) {
+          publishPlayerSlot(index, next[index]!);
         }
         return next;
       });
     },
-    [myRoleIndex, persistAllyProfiles, publishMyPlayer],
+    [persistAllyProfiles, publishPlayerSlot],
   );
 
   const updateOpponentProfile = useCallback(
@@ -372,40 +359,119 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
 
   const updatePlayer = useCallback(
     (index: number, patch: Partial<Player>) => {
-      if (myRoleIndex === null || index !== myRoleIndex) return;
       setPlayers((prev) => {
         const next = prev.map((p, i) => (i === index ? { ...p, ...patch } : p));
         persistAllyProfiles(next);
         if (patch.name !== undefined || patch.tiers !== undefined) {
-          publishMyPlayer(next[index]!);
+          publishPlayerSlot(index, next[index]!);
         }
         return next;
       });
     },
-    [myRoleIndex, persistAllyProfiles, publishMyPlayer],
+    [persistAllyProfiles, publishPlayerSlot],
   );
 
   const importPlayerTiers = useCallback(
     (index: number, tiers: Record<string, TierLabel>) => {
-      if (myRoleIndex === null || index !== myRoleIndex) return;
       setPlayers((prev) => {
         const next = prev.map((p, i) =>
           i === index ? { ...p, tiers: { ...tiers } } : p,
         );
-        publishMyPlayer(next[index]!);
+        publishPlayerSlot(index, next[index]!);
         return next;
       });
     },
-    [myRoleIndex, publishMyPlayer],
+    [publishPlayerSlot],
   );
 
-  const reset = useCallback(() => {
+  const resetBoard = useCallback(() => {
     const nextPickIds = emptyPickIds();
     const nextBans = { blue: emptyBanIds(), red: emptyBanIds() };
     setPickIds(nextPickIds);
     setBans(nextBans);
-    pushSharedDraft(profileKey, nextPickIds, nextBans);
-  }, [profileKey, pushSharedDraft]);
+    pushSharedDraft(profileKey, nextPickIds, nextBans, series);
+  }, [profileKey, pushSharedDraft, series]);
+
+  const toggleSeries = useCallback(
+    (active: boolean) => {
+      if (active) {
+        clearLastTerminatedSeries();
+        setLastTerminatedSeries(null);
+        const next = startSeries();
+        setSeries(next);
+        pushSharedDraft(profileKey, pickIds, bans, next);
+        return;
+      }
+      const current = seriesRef.current;
+      if (current.games.length > 0) {
+        saveLastTerminatedSeries(current);
+        setLastTerminatedSeries(current);
+      }
+      const next = endSeriesState();
+      setSeries(next);
+      pushSharedDraft(profileKey, pickIds, bans, next);
+    },
+    [profileKey, pickIds, bans, pushSharedDraft],
+  );
+
+  const setLockScope = useCallback(
+    (scope: LockScope) => {
+      const next = { ...seriesRef.current, lockScope: scope };
+      setSeries(next);
+      pushSharedDraft(profileKeyRef.current, pickIds, bans, next);
+    },
+    [pickIds, bans, pushSharedDraft],
+  );
+
+  const validateGame = useCallback(
+    (result: GameResult) => {
+      const current = seriesRef.current;
+      if (!current.active) return;
+      const nextSeries = archiveCurrentGame(
+        current,
+        pickIds,
+        profileKeyRef.current,
+        result,
+      );
+      const nextPickIds = emptyPickIds();
+      const nextBans = { blue: emptyBanIds(), red: emptyBanIds() };
+      setSeries(nextSeries);
+      setPickIds(nextPickIds);
+      setBans(nextBans);
+      pushSharedDraft(profileKeyRef.current, nextPickIds, nextBans, nextSeries);
+    },
+    [pickIds, pushSharedDraft],
+  );
+
+  const endSeries = useCallback(() => {
+    const current = seriesRef.current;
+    if (current.games.length > 0) {
+      saveLastTerminatedSeries(current);
+      setLastTerminatedSeries(current);
+    }
+    const next = endSeriesState();
+    setSeries(next);
+    pushSharedDraft(profileKeyRef.current, pickIds, bans, next);
+  }, [pickIds, bans, pushSharedDraft]);
+
+  const importSeries = useCallback(
+    (raw: unknown) => {
+      const next = parseSeriesImport(raw);
+      setSeries(next);
+      pushSharedDraft(profileKeyRef.current, pickIds, bans, next);
+    },
+    [pickIds, bans, pushSharedDraft],
+  );
+
+  const exportSeriesPayload = useCallback((): string | null => {
+    const current = seriesRef.current;
+    if (current.active || current.games.length > 0) {
+      return JSON.stringify(buildSeriesExport(current), null, 2);
+    }
+    const last = loadLastTerminatedSeries();
+    if (last) return JSON.stringify(buildSeriesExport(last), null, 2);
+    return null;
+  }, []);
 
   const used = useMemo(() => {
     const ids = new Set<string>();
@@ -424,11 +490,13 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     picks,
     bans,
     profileKey,
+    series,
+    locked,
+    lockedByGame,
+    lastTerminatedSeries,
     players,
     opponents,
     opggRegion,
-    myRoleIndex,
-    setMyRoleIndex,
     setOpggRegion,
     updateAllyProfile,
     updateOpponentProfile,
@@ -438,7 +506,13 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     setProfile,
     updatePlayer,
     importPlayerTiers,
-    reset,
+    resetBoard,
+    toggleSeries,
+    setLockScope,
+    validateGame,
+    endSeries,
+    importSeries,
+    exportSeriesPayload,
     used,
   };
 }

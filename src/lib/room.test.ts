@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
+import { EMPTY_SERIES } from "@/lib/series";
 import {
   connectRoom,
   disconnectRoom,
@@ -38,6 +39,7 @@ describe("room join semantics", () => {
         blue: ["", "", "", "", ""],
         red: ["", "", "", "", ""],
       },
+      series: { ...EMPTY_SERIES },
     });
 
     const docB = new Y.Doc();

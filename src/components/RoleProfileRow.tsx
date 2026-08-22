@@ -18,20 +18,26 @@ type Props = {
   onUpdate: (patch: Partial<RoleProfile>) => void;
 };
 
-function LinkIcon({ className }: { className?: string }) {
+function ExternalLinkIcon() {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
+      viewBox="0 0 16 16"
       fill="currentColor"
-      className={className ?? "h-4 w-4"}
+      className="h-3 w-3 shrink-0"
       aria-hidden="true"
     >
-      <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 1 1-1.061-1.06l1.224-1.225a1 1 0 0 0-1.414-1.414l-1.225 1.224a.75.75 0 1 1-1.06-1.06l1.224-1.225ZM6.5 9.964a2.5 2.5 0 0 1 3.536 0l3.268 3.268a2.5 2.5 0 0 1-3.536 3.536l-1.768-1.768a.75.75 0 0 1 1.06-1.06l1.708 1.707a1 1 0 1 0 1.414-1.414L8.318 11.59a1 1 0 0 0 0-1.414l-1.768-1.768a.75.75 0 1 1 1.06-1.06l1.768 1.768Z" />
-      <path d="M4.5 11.036a2.5 2.5 0 0 1 0-3.536l3.268-3.268a2.5 2.5 0 1 1 3.536 3.536l-1.225 1.224a.75.75 0 0 1-1.061-1.06l1.224-1.225a1 1 0 0 0-1.414-1.414L6.5 7.318a1 1 0 0 0 0 1.414l1.768 1.768a.75.75 0 0 1-1.06 1.06L4.5 11.036Z" />
+      <path d="M6.5 2.5a.75.75 0 0 0 0 1.5h3.19L3.22 10.47a.75.75 0 1 0 1.06 1.06l6.47-6.47v3.19a.75.75 0 0 0 1.5 0v-5a.75.75 0 0 0-.75-.75h-5Z" />
+      <path d="M8.5 11.5a.75.75 0 0 0-1.5 0v2.25A1.75 1.75 0 0 0 8.75 15.5h2.25A1.75 1.75 0 0 0 12.75 13.75v-2.25a.75.75 0 0 0-1.5 0v2.25a.25.25 0 0 1-.25.25H8.75a.25.25 0 0 1-.25-.25v-2.25Z" />
     </svg>
   );
 }
+
+const OPGG_LINK_CLASS =
+  "font-cond inline-flex h-8 w-[72px] shrink-0 cursor-pointer items-center justify-center gap-0.5 text-[10px] tracking-[0.06em] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold";
+
+const OPGG_PLACEHOLDER_CLASS =
+  "font-cond inline-flex h-8 w-[72px] shrink-0 items-center justify-center gap-0.5 text-[10px] tracking-[0.06em] text-dim opacity-40";
 
 export function RoleProfileRow({
   roleLabel,
@@ -126,16 +132,15 @@ export function RoleProfileRow({
               target="_blank"
               rel="noopener noreferrer"
               aria-label={linkLabel}
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-line bg-ink text-gold transition hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+              className={`${OPGG_LINK_CLASS} text-gold`}
             >
-              <LinkIcon />
+              OP.GG
+              <ExternalLinkIcon />
             </a>
           ) : (
-            <span
-              aria-hidden="true"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center border border-line bg-ink text-dim opacity-40"
-            >
-              <LinkIcon />
+            <span aria-hidden="true" className={OPGG_PLACEHOLDER_CLASS}>
+              OP.GG
+              <ExternalLinkIcon />
             </span>
           )}
           <button
