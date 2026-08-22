@@ -27,7 +27,12 @@ function champ(id: string, tags: Tag[] = ["ad"]): Champion {
 }
 
 function emptyPlayers(): Player[] {
-  return [0, 1, 2, 3, 4].map(() => ({ name: "", opgg: "", tiers: {} }));
+  return [0, 1, 2, 3, 4].map(() => ({
+    name: "",
+    opgg: "",
+    tiers: {},
+    tierPoolOrder: [],
+  }));
 }
 
 function emptySlots(): (Pick | null)[] {

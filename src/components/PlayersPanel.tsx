@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { championIconUrl } from "@/lib/ddragon";
 import type { OpggRegion, RoleProfile } from "@/lib/opggLink";
+import { orderedChampionIdsFromTierLists } from "@/lib/championGridOrder";
 import { playerTiersToTierLists, tierListsToPlayerTiers } from "@/lib/tierList";
 import { decodeTierSeed, encodeTierSeed } from "@/lib/tierSeed";
 import { extractToken } from "@/lib/token";
@@ -23,6 +24,7 @@ type Props = {
   onImportPlayerTiers: (
     index: number,
     tiers: Record<string, TierLabel>,
+    tierPoolOrder: string[],
   ) => void;
   embedded?: boolean;
 };
@@ -81,7 +83,9 @@ export function PlayersPanel({
             version={version}
             data={players[i]}
             tiersLink="/tiers"
-            onImport={(tiers) => onImportPlayerTiers(i, tiers)}
+            onImport={(tiers, tierPoolOrder) =>
+              onImportPlayerTiers(i, tiers, tierPoolOrder)
+            }
           />
         ))}
       </div>
@@ -100,7 +104,7 @@ function PlayerTierCard({
   version: string;
   data: Player;
   tiersLink: string;
-  onImport: (tiers: Record<string, TierLabel>) => void;
+  onImport: (tiers: Record<string, TierLabel>, tierPoolOrder: string[]) => void;
 }) {
   const [seedIn, setSeedIn] = useState("");
   const [importError, setImportError] = useState("");
@@ -144,7 +148,8 @@ function PlayerTierCard({
       return;
     }
     const tiers = tierListsToPlayerTiers(decoded.lists);
-    onImport(tiers);
+    const tierPoolOrder = orderedChampionIdsFromTierLists(decoded.lists);
+    onImport(tiers, tierPoolOrder);
     setSeedIn("");
     setImportOk(`${Object.keys(tiers).length} champions importés.`);
     window.setTimeout(() => setImportOk(""), 2600);

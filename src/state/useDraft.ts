@@ -52,6 +52,7 @@ import {
   type SharedDraftPayload,
   type SharedPlayerEntry,
 } from "@/lib/room";
+import { orderedChampionIdsFromTierLists } from "@/lib/championGridOrder";
 import { playerTiersToTierLists, tierListsToPlayerTiers } from "@/lib/tierList";
 import { decodeTierSeed, encodeTierSeed } from "@/lib/tierSeed";
 import type { Champion, Player, TierLabel } from "@/lib/types";
@@ -90,9 +91,13 @@ function entryFromPlayer(player: Player): SharedPlayerEntry {
 function playerFromSharedEntry(entry: SharedPlayerEntry): Omit<Player, "opgg"> {
   const decoded = decodeTierSeed(entry.tierSeed);
   const tiers = decoded.ok ? tierListsToPlayerTiers(decoded.lists) : {};
+  const tierPoolOrder = decoded.ok
+    ? orderedChampionIdsFromTierLists(decoded.lists)
+    : [];
   return {
     name: entry.name,
     tiers,
+    tierPoolOrder,
   };
 }
 
@@ -101,6 +106,7 @@ function playersFromAllyProfiles(profiles: RoleProfile[]): Player[] {
     name: p.name,
     opgg: p.opgg,
     tiers: {},
+    tierPoolOrder: [],
   }));
 }
 
@@ -225,6 +231,7 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
             name: shared.name,
             opgg: p.opgg,
             tiers: shared.tiers,
+            tierPoolOrder: shared.tierPoolOrder,
           };
         }),
       );
@@ -373,10 +380,14 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
   );
 
   const importPlayerTiers = useCallback(
-    (index: number, tiers: Record<string, TierLabel>) => {
+    (
+      index: number,
+      tiers: Record<string, TierLabel>,
+      tierPoolOrder: string[] = [],
+    ) => {
       setPlayers((prev) => {
         const next = prev.map((p, i) =>
-          i === index ? { ...p, tiers: { ...tiers } } : p,
+          i === index ? { ...p, tiers: { ...tiers }, tierPoolOrder } : p,
         );
         publishPlayerSlot(index, next[index]!);
         return next;

@@ -66,6 +66,8 @@ export type Player = {
   name: string;
   opgg: string;
   tiers: Partial<Record<string, TierLabel>>;
+  /** Tier-list order (S→A→B→C) for grid prioritization; from TL1 seed order. */
+  tierPoolOrder: string[];
 };
 
 const TAG_SET: ReadonlySet<string> = new Set(TAGS);

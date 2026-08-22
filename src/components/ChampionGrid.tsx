@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ROLES_BY_INDEX, ROLE_SHORT, championPlaysRole, type DraftRole } from "@/data/roles";
 import { championIconUrl } from "@/lib/ddragon";
+import { orderChampionsForGrid } from "@/lib/championGridOrder";
 import {
   CHAMPION_GRID_CELL_PX,
   CHAMPION_GRID_COLS,
@@ -24,6 +25,8 @@ type Props = {
   used: Set<string>;
   locked: Map<string, number>;
   showHint: boolean;
+  prioritizeTierPool?: boolean;
+  tierPoolOrder?: string[];
   slotTier?: (champId: string) => TierLabel | null;
   onSelect: (champ: Champion) => void;
   onHover: (champ: Champion | null) => void;
@@ -37,6 +40,8 @@ export function ChampionGrid({
   used,
   locked,
   showHint,
+  prioritizeTierPool = false,
+  tierPoolOrder,
   slotTier,
   onSelect,
   onHover,
@@ -59,8 +64,19 @@ export function ChampionGrid({
     });
   }, [rosterOrder, roleFilter, query]);
 
-  const championsToRender = compactRoster ?? rosterOrder;
-  const rowCount = Math.ceil(championsToRender.length / CHAMPION_GRID_COLS);
+  const filteredChampions = compactRoster ?? rosterOrder;
+
+  const gridEntries = useMemo(
+    () =>
+      orderChampionsForGrid(
+        filteredChampions,
+        tierPoolOrder,
+        prioritizeTierPool,
+      ),
+    [filteredChampions, tierPoolOrder, prioritizeTierPool],
+  );
+
+  const rowCount = Math.ceil(gridEntries.length / CHAMPION_GRID_COLS);
 
   return (
     <section
@@ -134,7 +150,7 @@ export function ChampionGrid({
           }}
           data-testid="champion-grid"
         >
-          {championsToRender.map((c) => {
+          {gridEntries.map(({ champion: c, poolDividerBefore }) => {
             const visible =
               compactRoster !== null ||
               !query.trim() ||
@@ -160,6 +176,8 @@ export function ChampionGrid({
                 disabled={disabled}
                 className={`relative overflow-hidden border bg-panel2 p-0 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-gold ${
                   visible ? "" : "invisible pointer-events-none"
+                } ${
+                  poolDividerBefore ? "border-t-2 border-t-gold/45" : ""
                 } ${
                   disabled
                     ? "cursor-not-allowed border-line brightness-50 grayscale opacity-50"

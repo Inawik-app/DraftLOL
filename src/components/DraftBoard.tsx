@@ -106,6 +106,21 @@ export function DraftBoard({
     return out;
   }, [picks.blue, blueSlots, profile, players, available]);
 
+  const gridTierPool = useMemo(() => {
+    if (
+      !activeSlot ||
+      activeSlot.kind !== "pick" ||
+      activeSlot.team !== "blue"
+    ) {
+      return { prioritize: false, order: [] as string[] };
+    }
+    const order = players[activeSlot.index]?.tierPoolOrder ?? [];
+    if (order.length === 0) {
+      return { prioritize: false, order: [] as string[] };
+    }
+    return { prioritize: true, order };
+  }, [activeSlot, players]);
+
   const slotTier = useMemo(() => {
     if (
       !activeSlot ||
@@ -222,6 +237,8 @@ export function DraftBoard({
           used={used}
           locked={locked}
           showHint={gridHint}
+          prioritizeTierPool={gridTierPool.prioritize}
+          tierPoolOrder={gridTierPool.order}
           slotTier={slotTier}
           onSelect={placeChampion}
           onHover={setGridHoverChamp}

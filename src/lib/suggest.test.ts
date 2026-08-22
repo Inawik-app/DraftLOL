@@ -36,6 +36,7 @@ function emptyPlayers(): Player[] {
     name: "",
     opgg: "",
     tiers: {},
+    tierPoolOrder: [],
   }));
 }
 

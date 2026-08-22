@@ -16,6 +16,7 @@ type Props = {
   onImportPlayerTiers: (
     index: number,
     tiers: Record<string, import("@/lib/types").TierLabel>,
+    tierPoolOrder: string[],
   ) => void;
 };
 
