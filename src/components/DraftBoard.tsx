@@ -80,7 +80,7 @@ export function DraftBoard({
   );
 
   const suggestions = useMemo(() => {
-    const out: Record<number, Champion[]> = {};
+    const out: Record<number, ReturnType<typeof suggestForRole>> = {};
     for (let i = 0; i < 5; i++) {
       if (picks.blue[i]) continue;
       out[i] = suggestForRole(i, blueSlots, profile, players, available);
@@ -211,7 +211,7 @@ function TeamColumn({
   picks: (Champion | null)[];
   bans: string[];
   score: number;
-  suggestions: Record<number, Champion[]>;
+  suggestions: Record<number, ReturnType<typeof suggestForRole>>;
   onOpen: (target: PickerTarget, el: HTMLButtonElement) => void;
   onHover: (focus: HoverFocus | null) => void;
   onSuggest: (index: number, champ: Champion) => void;
@@ -320,9 +320,15 @@ function TeamColumn({
             <div className="min-w-0 flex-1">
               {champ ? (
                 <div className="font-cond truncate text-[15px]">{champ.name}</div>
-              ) : suggs?.length ? (
-                <div className="flex items-center gap-0.5">
-                  {suggs.map((c) => (
+              ) : suggs?.champions.length ? (
+                <div className="min-w-0 flex-1">
+                  {suggs.roleFilterWidened ? (
+                    <p className="mb-0.5 text-[9px] text-warn">
+                      Pool élargi — aucun champion pour ce rôle
+                    </p>
+                  ) : null}
+                  <div className="flex items-center gap-0.5">
+                  {suggs.champions.map((c) => (
                     <button
                       key={c.id}
                       type="button"
@@ -345,6 +351,7 @@ function TeamColumn({
                       />
                     </button>
                   ))}
+                  </div>
                 </div>
               ) : (
                 <span className="text-[10px] text-dim">Vide</span>

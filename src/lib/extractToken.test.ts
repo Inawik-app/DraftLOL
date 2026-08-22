@@ -1,35 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { encodeRoom, extractToken, type RoomState } from "./token";
-import type { Champion } from "./types";
+import { extractToken } from "./token";
 
-function champ(id: string, key: number, name = id): Champion {
-  return {
-    id,
-    key,
-    name,
-    title: "titre",
-    tags: ["ad"],
-    curated: true,
-    riotTags: [],
-  };
-}
-
-function minimalState(): RoomState {
-  return {
-    profileKey: "teamfight",
-    picks: { blue: [null, null, null, null, null], red: [null, null, null, null, null] },
-    bans: { blue: ["", "", "", "", ""], red: ["", "", "", "", ""] },
-    players: [0, 1, 2, 3, 4].map(() => ({
-      name: "",
-      opgg: "",
-      tiers: {},
-    })),
-  };
-}
+const token = "DRAFT1.legacyPayloadExample";
 
 describe("extractToken", () => {
-  const token = encodeRoom(minimalState());
-
   it("1 — token nu DRAFT1.xxx", () => {
     expect(extractToken(token)).toBe(token);
   });
@@ -69,5 +43,3 @@ describe("extractToken", () => {
     expect(extractToken("")).toBeNull();
   });
 });
-
-void champ;

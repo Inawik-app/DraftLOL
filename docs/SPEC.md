@@ -244,35 +244,26 @@ type Player = {
 
 **Lien op.gg :** simple raccourci pour ouvrir la page du joueur dans un nouvel onglet. Aucune donnée n'en est extraite côté client (pas de fetch, pas de scraping, pas d'impact sur le score ni les suggestions). On accepte au collage une URL complète ou un Riot ID `pseudo#tag` (région configurable, défaut EUW) ; l'interface affiche toujours le pseudo, jamais l'URL brute.
 
-**Adversaires :** cinq profils `{ name, opgg }` indexés par rôle, **strictement locaux** — hors document Yjs, hors export DRAFT1, hors seeds TL1. Vidés à chaque « Nouvelle draft ». Les profils alliés (pseudo + op.gg) persistent en localStorage entre les drafts.
+**Adversaires :** cinq profils `{ name, opgg }` indexés par rôle, **strictement locaux** — hors document Yjs, hors seeds TL1. Vidés à chaque « Nouvelle draft ». Les profils alliés (pseudo + op.gg) persistent en localStorage entre les drafts.
 
 **Synchronisation salle :** seuls `name` et la seed TL1. (`tierSeed`) du slot choisi transitent via Yjs. Les liens op.gg et les adversaires ne sont jamais partagés.
 
 ---
 
-## 9. Token de salle et export hors ligne
+## 9. Lien de salle
 
-**Lien de salle (temps réel)** : `#r=<rid>` où `rid` est un UUID v4 (~36 caractères). Le hash ne contient **que** l'identifiant de salle — pas de picks, bans, profil ni joueurs. `extractRidFromHash` accepte aussi les anciens liens `#r=DRAFT1.…` portant un champ `i` pour migration.
+**Lien de salle (temps réel)** : `#r=<rid>` où `rid` est un UUID v4 (~36 caractères). Le hash ne contient **que** l'identifiant de salle — pas de picks, bans, profil ni joueurs. `extractRidFromHash` accepte aussi les anciens liens `#r=DRAFT1.…` portant un champ `i` pour en extraire le `rid` uniquement (migration).
 
 - `rid` = UUID v4 généré **une seule fois** à la création d'une salle (`crypto.randomUUID()`), jamais régénéré tant que la salle dure.
 - Le hash est mis à jour immédiatement à chaque changement de `rid` (nouvelle salle, rejoindre, quitter).
 
-**Export hors ligne** : format `DRAFT1.<payload>` (snapshot figé, sans temps réel).
-
-- `payload` = JSON à clés abrégées, compressé via `lz-string.compressToEncodedURIComponent`.
-- Contenu : profil actif, picks et bans (identifiants Data Dragon), les cinq objets joueur (pseudo, tier lists). **Pas de `rid`**, pas de liens op.gg (localStorage), pas de profils adverses.
-- Le préfixe porte la version. Un décodeur rencontrant `DRAFT2.` retourne une erreur explicite.
-
 ```ts
-function encodeOfflineDraft(state: OfflineDraftState): string;
-function decodeRoom(token: string): { ok: true; state: RoomState } | { ok: false; reason: string };
 function extractRidFromHash(input: string): string | null;
 function deriveRoomNameFromRid(rid: string): string;
+function formatRoomUrl(rid: string): string;
 ```
 
-`decodeRoom` **ne jette jamais**. Token tronqué, préfixe absent, version inconnue, JSON invalide, champion inexistant dans le patch courant : chaque cas retourne une raison lisible en français.
-
-Deux actions UI distinctes : « Copier le lien de la salle » (`#r=<rid>`) et « Exporter la draft » (`DRAFT1.…`).
+Une seule action UI : « Copier le lien de la salle » (`#r=<rid>`).
 
 ---
 
@@ -280,7 +271,7 @@ Deux actions UI distinctes : « Copier le lien de la salle » (`#r=<rid>`) et «
 
 Yjs + `y-webrtc`. Nom de room = **hash court du `rid`**, jamais le token entier : le nom transite par le serveur de signaling. Le `rid` aléatoire évite toute fuite de données via le nom de room — les tier lists peuvent donc vivre dans le document partagé.
 
-Sans `rid` dans le hash : pas de provider, le site fonctionne normalement en solo ou via export DRAFT1.
+Sans `rid` dans le hash : pas de provider, le site fonctionne normalement en solo.
 
 Document partagé :
 

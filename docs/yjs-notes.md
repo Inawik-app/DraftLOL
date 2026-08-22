@@ -363,7 +363,7 @@ function pushToYjs(snapshot: DraftSnapshot) {
 
 ## Checklist implémentation `room.ts`
 
-- [ ] `roomName` = hash court dérivé du token, pas le token DRAFT1.*
+- [ ] `roomName` = hash court dérivé du `rid`, pas le token entier
 - [ ] `ydoc.getMap('draft')` — clés `picks`, `bans`, `profileKey`
 - [ ] Écritures multi-clés dans `ydoc.transact(..., 'local')`
 - [ ] `WebrtcProvider` + listeners `status` / `peers` pour l’UI

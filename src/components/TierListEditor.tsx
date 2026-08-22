@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { championIconUrl } from "@/lib/ddragon";
+import {
+  type DraftRole,
+  championPlaysRole,
+} from "@/data/roles";
 import { subsequenceScore } from "@/lib/search";
 import {
   assignmentsToLists,
@@ -16,23 +20,49 @@ import {
   TIER_LIST_STORAGE_UNAVAILABLE_MSG,
 } from "@/lib/tierListStorage";
 import { decodeTierSeed, encodeTierSeed } from "@/lib/tierSeed";
+import {
+  ROLE_FILTER_BAR_WIDTH_PX,
+  ROLE_FILTER_BUTTON_WIDTH_PX,
+  ROLE_FILTER_GAP_PX,
+  SEARCH_COLUMN_WIDTH_PX,
+  SEARCH_GRID_GAP_PX,
+  SEARCH_RESULT_COLS,
+  SEARCH_RESULTS_HEIGHT_PX,
+  SEARCH_CHIP_HEIGHT_PX,
+  TIER_COLUMN_HEIGHT_PX,
+  TIER_COLUMN_WIDTH_PX,
+  TIER_GRID_GAP_PX,
+  TIERS_PAGE_WIDTH_PX,
+} from "@/lib/tiersLayout";
 import { extractToken } from "@/lib/token";
 import { isLocalStorageAvailable } from "@/lib/storage";
 import type { Champion, TierLabel } from "@/lib/types";
 
 const TIERS: TierLabel[] = ["S", "A", "B"];
-/** Two rows of champion chips — fixed slot so typing never shifts layout. */
-const SEARCH_RESULTS_HEIGHT = "4.75rem";
-const TIER_COLUMN_LIST_HEIGHT = "min(480px, 42vh)";
+
+const ROLE_FILTERS: { id: DraftRole | null; label: string }[] = [
+  { id: null, label: "ALL" },
+  { id: "top", label: "TOP" },
+  { id: "jgl", label: "JGL" },
+  { id: "mid", label: "MID" },
+  { id: "adc", label: "ADC" },
+  { id: "sup", label: "SUP" },
+];
 
 type Props = {
   version: string;
   champions: Champion[];
 };
 
+function matchesRoleFilter(championId: string, roleFilter: DraftRole | null): boolean {
+  if (!roleFilter) return true;
+  return championPlaysRole(championId, roleFilter);
+}
+
 export function TierListEditor({ version, champions }: Props) {
   const [assignments, setAssignments] = useState<TierAssignments>({});
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<DraftRole | null>(null);
   const [importIn, setImportIn] = useState("");
   const [importError, setImportError] = useState("");
   const [storageNotice, setStorageNotice] = useState(false);
@@ -71,22 +101,23 @@ export function TierListEditor({ version, champions }: Props) {
     if (!query.trim()) return [];
     return champions
       .filter((c) => !assignedKeys.has(c.key))
+      .filter((c) => matchesRoleFilter(c.id, roleFilter))
       .map((c) => ({ c, s: subsequenceScore(query, c.name) }))
       .filter((x) => x.s !== null)
       .sort((a, b) => (b.s as number) - (a.s as number))
-      .slice(0, 12)
       .map((x) => x.c);
-  }, [query, champions, assignedKeys]);
+  }, [query, champions, assignedKeys, roleFilter]);
 
   const columns = useMemo(() => {
     const out: Record<TierLabel, Champion[]> = { S: [], A: [], B: [] };
     for (const tier of TIERS) {
       out[tier] = lists[tier]
         .map((key) => championsByKey.get(key))
-        .filter((c): c is Champion => c != null);
+        .filter((c): c is Champion => c != null)
+        .filter((c) => matchesRoleFilter(c.id, roleFilter));
     }
     return out;
-  }, [lists, championsByKey]);
+  }, [lists, championsByKey, roleFilter]);
 
   const addChampion = useCallback((champion: Champion, tier: TierLabel = "S") => {
     setAssignments((prev) => ({ ...prev, [champion.key]: tier }));
@@ -159,7 +190,11 @@ export function TierListEditor({ version, champions }: Props) {
   };
 
   return (
-    <div className="space-y-4">
+    <div
+      className="shrink-0 space-y-4"
+      style={{ width: `${TIERS_PAGE_WIDTH_PX - 28}px` }}
+      data-tiers-root="inner"
+    >
       {storageNotice ? (
         <p className="border border-line bg-panel2 px-3 py-2 text-[12px] text-dim">
           {TIER_LIST_STORAGE_UNAVAILABLE_MSG}
@@ -172,6 +207,39 @@ export function TierListEditor({ version, champions }: Props) {
           Tape les lettres dans l&apos;ordre — kss, mrgn, twf… Clique pour
           ajouter en tier S.
         </p>
+
+        <div
+          className="mt-2 shrink-0"
+          style={{ width: `${ROLE_FILTER_BAR_WIDTH_PX}px` }}
+        >
+          <div
+            className="grid"
+            style={{
+              gridTemplateColumns: `repeat(6, ${ROLE_FILTER_BUTTON_WIDTH_PX}px)`,
+              gap: `${ROLE_FILTER_GAP_PX}px`,
+            }}
+          >
+            {ROLE_FILTERS.map(({ id, label }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setRoleFilter(id)}
+                style={{
+                  width: `${ROLE_FILTER_BUTTON_WIDTH_PX}px`,
+                  height: "32px",
+                }}
+                className={`font-cond border text-[10px] tracking-[0.08em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
+                  roleFilter === id
+                    ? "border-gold bg-ink text-gold"
+                    : "border-line bg-panel2 text-txt hover:border-gold hover:text-gold"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -180,20 +248,27 @@ export function TierListEditor({ version, champions }: Props) {
           aria-label="Rechercher un champion"
         />
         <div
+          id="search-results"
           className="mt-2 overflow-y-auto"
-          style={{ height: SEARCH_RESULTS_HEIGHT }}
+          style={{ height: `${SEARCH_RESULTS_HEIGHT_PX}px` }}
           aria-live="polite"
-          aria-hidden={!query.trim()}
         >
           {query.trim() ? (
             searchResults.length > 0 ? (
-              <ul className="flex flex-wrap content-start gap-1.5">
+              <ul
+                className="grid"
+                style={{
+                  gridTemplateColumns: `repeat(${SEARCH_RESULT_COLS}, ${SEARCH_COLUMN_WIDTH_PX}px)`,
+                  gap: `${SEARCH_GRID_GAP_PX}px`,
+                }}
+              >
                 {searchResults.map((c) => (
                   <li key={c.id}>
                     <button
                       type="button"
                       onClick={() => addChampion(c, "S")}
-                      className="flex items-center gap-1.5 border border-line bg-panel2 px-1.5 py-1 text-left text-txt hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+                      style={{ height: `${SEARCH_CHIP_HEIGHT_PX}px` }}
+                      className="flex w-full items-center gap-1.5 overflow-hidden border border-line bg-panel2 px-1.5 py-1 text-left text-txt hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -201,9 +276,11 @@ export function TierListEditor({ version, champions }: Props) {
                         alt=""
                         width={24}
                         height={24}
-                        className="h-6 w-6"
+                        className="h-6 w-6 shrink-0"
                       />
-                      <span className="font-cond text-[12px]">{c.name}</span>
+                      <span className="min-w-0 flex-1 truncate font-cond text-[12px]">
+                        {c.name}
+                      </span>
                     </button>
                   </li>
                 ))}
@@ -217,12 +294,22 @@ export function TierListEditor({ version, champions }: Props) {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3 min-[900px]:grid-cols-3">
+      <div
+        className="grid shrink-0"
+        style={{
+          gridTemplateColumns: `repeat(3, ${TIER_COLUMN_WIDTH_PX}px)`,
+          gap: `${TIER_GRID_GAP_PX}px`,
+        }}
+      >
         {TIERS.map((tier) => (
           <section
             key={tier}
             aria-label={`Colonne tier ${tier}`}
-            className="flex min-w-0 flex-col border border-line bg-panel p-2.5"
+            className="flex shrink-0 flex-col border border-line bg-panel p-2.5"
+            style={{
+              width: `${TIER_COLUMN_WIDTH_PX}px`,
+              height: `${TIER_COLUMN_HEIGHT_PX + 48}px`,
+            }}
           >
             <div className="mb-2 flex shrink-0 items-baseline justify-between">
               <h3 className="font-cond text-lg text-gold">Tier {tier}</h3>
@@ -232,8 +319,8 @@ export function TierListEditor({ version, champions }: Props) {
               </span>
             </div>
             <ul
-              className="min-h-0 flex-1 space-y-1 overflow-y-auto"
-              style={{ height: TIER_COLUMN_LIST_HEIGHT }}
+              className="min-h-0 shrink-0 space-y-1 overflow-y-auto"
+              style={{ height: `${TIER_COLUMN_HEIGHT_PX}px` }}
             >
               {columns[tier].map((c) => (
                 <li

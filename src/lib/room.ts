@@ -29,14 +29,7 @@ export type RoomStatus = {
   /** Provider is connected to signaling (not the same as having peers). */
   signalingConnected: boolean;
   peerCount: number;
-  /** True after 30s in a room with zero peers detected. */
-  noPeersTimedOut: boolean;
 };
-
-export const NO_PEERS_TIMEOUT_MS = 30_000;
-
-export const NO_PEERS_TIMEOUT_MSG =
-  "Aucun coéquipier détecté depuis 30 secondes. Vérifie que tout le monde ouvre exactement le même lien, qu'aucun bloqueur ne coupe WebRTC, puis réessaie « Quitter la salle » et repartage le lien.";
 
 const LOCAL_ORIGIN = "local";
 const emptyPickIds = (): TeamPickIds => ({
@@ -63,28 +56,12 @@ const playersMapListeners = new Set<(map: Y.Map<unknown>) => void>();
 let status: RoomStatus = {
   signalingConnected: false,
   peerCount: 0,
-  noPeersTimedOut: false,
 };
 
-let noPeersTimer: ReturnType<typeof setTimeout> | null = null;
-
-function clearNoPeersTimer() {
-  if (noPeersTimer != null) {
-    clearTimeout(noPeersTimer);
-    noPeersTimer = null;
-  }
-}
-
-function startNoPeersTimer() {
-  clearNoPeersTimer();
-  status = { ...status, noPeersTimedOut: false };
+function updatePeerCount(webrtcPeers: string[], bcPeers: string[]) {
+  const peerCount = webrtcPeers.length + bcPeers.length;
+  status = { ...status, peerCount };
   emitStatus();
-  noPeersTimer = setTimeout(() => {
-    if (activeRoomName && status.peerCount === 0) {
-      status = { ...status, noPeersTimedOut: true };
-      emitStatus();
-    }
-  }, NO_PEERS_TIMEOUT_MS);
 }
 
 function padFiveStrings(arr: unknown): string[] {
@@ -163,16 +140,6 @@ function emitDraftMap() {
   }
 }
 
-function updatePeerCount(webrtcPeers: string[], bcPeers: string[]) {
-  const peerCount = webrtcPeers.length + bcPeers.length;
-  status = { ...status, peerCount };
-  if (peerCount > 0) {
-    status = { ...status, noPeersTimedOut: false };
-    clearNoPeersTimer();
-  }
-  emitStatus();
-}
-
 function onProviderStatus(event: { connected: boolean }) {
   console.log("[room] status", event);
   status = { ...status, signalingConnected: event.connected };
@@ -190,7 +157,6 @@ function onProviderPeers(event: {
 }
 
 function teardownProvider() {
-  clearNoPeersTimer();
   if (provider) {
     console.log("[room] provider destroy", { roomName: activeRoomName });
     provider.off("status", onProviderStatus);
@@ -206,7 +172,7 @@ function teardownProvider() {
   draftMap = null;
   playersMap = null;
   activeRoomName = null;
-  status = { signalingConnected: false, peerCount: 0, noPeersTimedOut: false };
+  status = { signalingConnected: false, peerCount: 0 };
   emitStatus();
 }
 
@@ -377,12 +343,10 @@ export function connectRoom(roomName: string): void {
   status = {
     signalingConnected: provider.connected,
     peerCount: 0,
-    noPeersTimedOut: false,
   };
   emitStatus();
   emitDraftMap();
   emitPlayersMap();
-  startNoPeersTimer();
 }
 
 export function disconnectRoom(): void {

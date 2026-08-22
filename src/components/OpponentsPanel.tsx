@@ -11,6 +11,7 @@ type Props = {
   opggRegion: OpggRegion;
   onSetOpggRegion: (region: OpggRegion) => void;
   onUpdateOpponent: (index: number, patch: Partial<RoleProfile>) => void;
+  embedded?: boolean;
 };
 
 export function OpponentsPanel({
@@ -20,9 +21,12 @@ export function OpponentsPanel({
   opggRegion,
   onSetOpggRegion,
   onUpdateOpponent,
+  embedded = false,
 }: Props) {
   return (
-    <section className="mt-4 border border-line bg-panel p-3">
+    <section
+      className={`border border-line bg-panel p-3 ${embedded ? "" : "mt-4"}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <div>
           <h2 className="font-cond text-base">Adversaires</h2>

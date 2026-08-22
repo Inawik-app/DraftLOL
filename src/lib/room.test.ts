@@ -11,49 +11,16 @@ import {
 } from "./room";
 import {
   deriveRoomNameFromRid,
-  encodeRoom,
   generateRoomId,
   hashRoomId,
 } from "./token";
 import { encodeTierSeed } from "./tierSeed";
-import type { RoomState } from "./token";
-
-function minimalRoomState(rid: string): RoomState {
-  return {
-    profileKey: "teamfight",
-    picks: {
-      blue: [null, null, null, null, null],
-      red: [null, null, null, null, null],
-    },
-    bans: {
-      blue: ["", "", "", "", ""],
-      red: ["", "", "", "", ""],
-    },
-    players: [0, 1, 2, 3, 4].map(() => ({
-      name: "",
-      opgg: "",
-      tiers: {},
-    })),
-    rid,
-  };
-}
 
 describe("roomName from rid", () => {
-  it("deux tokens avec le même rid produisent le même roomName", () => {
-    const rid = "550e8400-e29b-41d4-a716-446655440000";
-    const base = minimalRoomState(rid);
-    const tokenA = encodeRoom(base);
-    const tokenB = encodeRoom({
-      ...base,
-      bans: { ...base.bans, blue: ["Yasuo", "", "", "", ""] },
-    });
-    expect(deriveRoomNameFromRid(rid)).toBe(hashRoomId(rid));
-    expect(tokenA).not.toBe(tokenB);
-  });
-
   it("deux rid différents produisent des roomName différents", () => {
     const ridA = generateRoomId();
     const ridB = generateRoomId();
+    expect(deriveRoomNameFromRid(ridA)).toBe(hashRoomId(ridA));
     expect(deriveRoomNameFromRid(ridA)).not.toBe(deriveRoomNameFromRid(ridB));
   });
 });

@@ -1,3 +1,4 @@
+import { ROLES_BY_INDEX, championPlaysRole } from "@/data/roles";
 import { scoreComp } from "./score";
 import type {
   Champion,
@@ -11,6 +12,12 @@ const AFFINITY_WEIGHT: Record<TierLabel, number> = {
   S: 1,
   A: 0.7,
   B: 0.4,
+};
+
+export type RoleSuggestions = {
+  champions: Champion[];
+  /** True when no champion matched the slot role — full roster used instead. */
+  roleFilterWidened: boolean;
 };
 
 function filled(slots: (Pick | null)[]): Pick[] {
@@ -27,7 +34,7 @@ export function suggestForRole(
   profile: Profile,
   players: Player[],
   available: Champion[],
-): Champion[] {
+): RoleSuggestions {
   const taken = new Set<string>();
   for (const p of picks) {
     if (p) taken.add(p.champ.id);
@@ -35,12 +42,20 @@ export function suggestForRole(
 
   const player = players[roleIdx];
   const before = scoreComp(filled(picks), profile).score;
+  const slotRole = ROLES_BY_INDEX[roleIdx]!;
+
+  let candidates = available.filter(
+    (c) => !taken.has(c.id) && championPlaysRole(c.id, slotRole),
+  );
+  let roleFilterWidened = false;
+  if (candidates.length === 0) {
+    candidates = available.filter((c) => !taken.has(c.id));
+    roleFilterWidened = true;
+  }
 
   const ranked: { c: Champion; v: number }[] = [];
 
-  for (const c of available) {
-    if (taken.has(c.id)) continue;
-
+  for (const c of candidates) {
     const tier = player?.tiers[c.id] ?? null;
     const next = picks.slice();
     next[roleIdx] = { champ: c, tier, roleIdx };
@@ -51,5 +66,8 @@ export function suggestForRole(
   }
 
   ranked.sort((a, b) => b.v - a.v);
-  return ranked.slice(0, 5).map((x) => x.c);
+  return {
+    champions: ranked.slice(0, 5).map((x) => x.c),
+    roleFilterWidened,
+  };
 }

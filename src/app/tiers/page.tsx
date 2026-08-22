@@ -9,6 +9,7 @@ import {
   loadChampions,
 } from "@/lib/ddragon";
 import { setChampionCatalog } from "@/lib/room";
+import { TIERS_PAGE_WIDTH_PX } from "@/lib/tiersLayout";
 
 /** /tiers never carries the draft board hash — strip legacy fragments on load. */
 function stripBoardHashFromUrl(): void {
@@ -87,7 +88,11 @@ export default function TiersPage() {
 
   if (!version) {
     return (
-      <div className="mx-auto max-w-[1240px] px-3.5 py-3.5">
+      <div
+        className="mx-auto shrink-0 px-3.5 py-3.5"
+        style={{ width: `${TIERS_PAGE_WIDTH_PX}px` }}
+        data-tiers-root="page"
+      >
         <p className="font-cond text-[11px] tracking-[0.1em] text-dim">
           Chargement du patch depuis Data Dragon…
         </p>
@@ -96,7 +101,11 @@ export default function TiersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1240px] px-3.5 pb-14 pt-3.5">
+    <div
+      className="mx-auto shrink-0 px-3.5 pb-14 pt-3.5"
+      style={{ width: `${TIERS_PAGE_WIDTH_PX}px` }}
+      data-tiers-root="page"
+    >
       <AppNav />
       <header className="mb-3 border-b border-line pb-2.5">
         <h1 className="font-cond text-[26px] leading-none tracking-[0.14em]">

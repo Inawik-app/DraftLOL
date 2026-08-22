@@ -4,9 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNav } from "@/components/AppNav";
 import { DraftBoard } from "@/components/DraftBoard";
 import { FailurePanel } from "@/components/FailurePanel";
-import { OfflineDraftPanel } from "@/components/OfflineDraftPanel";
-import { OpponentsPanel } from "@/components/OpponentsPanel";
-import { PlayersPanel } from "@/components/PlayersPanel";
+import { PlayerProfilesSection } from "@/components/PlayerProfilesSection";
 import { ProfileSelector } from "@/components/ProfileSelector";
 import { RoomConnector } from "@/components/RoomConnector";
 import { RoomLinkPanel } from "@/components/RoomLinkPanel";
@@ -17,7 +15,6 @@ import {
   loadChampions,
 } from "@/lib/ddragon";
 import {
-  NO_PEERS_TIMEOUT_MSG,
   setChampionCatalog,
   subscribeRoomStatus,
   syncRoomFromLocation,
@@ -28,12 +25,8 @@ import {
   LOCAL_STORAGE_UNAVAILABLE_MSG,
 } from "@/lib/storage";
 import {
-  decodeRoom,
-  encodeOfflineDraft,
   deriveRoomNameFromRid,
   extractRidFromHash,
-  extractToken,
-  formatMissingChampionsMessage,
   generateRoomId,
   persistSessionRoomRid,
   replaceLocationRid,
@@ -74,12 +67,9 @@ export default function Home() {
   const [roomStatus, setRoomStatus] = useState({
     signalingConnected: false,
     peerCount: 0,
-    noPeersTimedOut: false,
   });
-  const [patchWarning, setPatchWarning] = useState<string | null>(null);
   const [hashNotice, setHashNotice] = useState<string | null>(null);
   const [showStorageNotice, setShowStorageNotice] = useState(false);
-  const [showNoPeersNotice, setShowNoPeersNotice] = useState(true);
   const draft = useDraft();
   const profile = PROFILES[draft.profileKey];
   const restoredRef = useRef(false);
@@ -125,15 +115,12 @@ export default function Home() {
   useEffect(() => subscribeRoomStatus(setRoomStatus), []);
 
   useEffect(() => {
-    if (roomStatus.noPeersTimedOut) setShowNoPeersNotice(true);
-  }, [roomStatus.noPeersTimedOut]);
-
-  useEffect(() => {
     if (!champions.length || restoredRef.current) return;
     restoredRef.current = true;
 
+    const hash = window.location.hash;
     const rid =
-      extractRidFromHash(window.location.hash) ??
+      extractRidFromHash(hash) ??
       extractRidFromHash(window.location.href);
 
     if (rid) {
@@ -141,47 +128,15 @@ export default function Home() {
       return;
     }
 
-    const legacyToken =
-      extractToken(window.location.hash) ??
-      extractToken(window.location.href);
-    if (legacyToken?.startsWith("DRAFT1.")) {
-      const result = decodeRoom(legacyToken, champions);
-      if (result.ok) {
-        setRoomId(result.state.rid ?? generateRoomId());
-        draft.loadRoom(result.state);
-        if (result.missingChampionIds.length) {
-          setPatchWarning(
-            formatMissingChampionsMessage(result.missingChampionIds),
-          );
-        }
-      } else {
-        setRoomId(generateRoomId());
-        setHashNotice(
-          "Le lien dans l'URL est illisible ou corrompu. Une nouvelle salle a été créée — repartage le lien à ton équipe.",
-        );
-      }
-      return;
+    if (hash && hash !== "#" && hash.length > 1) {
+      setHashNotice(
+        "Le lien dans l'URL est illisible ou corrompu. Une nouvelle salle a été créée — repartage le lien à ton équipe.",
+      );
     }
 
     setRoomId(generateRoomId());
     // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once on load
   }, [champions]);
-
-  const offlineDraftToken = useMemo(() => {
-    if (!champions.length) return "";
-    return encodeOfflineDraft({
-      profileKey: draft.profileKey,
-      picks: draft.picks,
-      bans: draft.bans,
-      players: draft.players,
-    });
-  }, [
-    champions.length,
-    draft.profileKey,
-    draft.picks,
-    draft.bans,
-    draft.players,
-  ]);
 
   const roomName = useMemo(
     () => (roomId ? deriveRoomNameFromRid(roomId) : null),
@@ -215,22 +170,10 @@ export default function Home() {
     [draft.picks.red, profile],
   );
 
-  const handleLoadOfflineDraft = (raw: string) => {
-    const result = decodeRoom(raw, champions);
-    if (!result.ok) return result;
-    draft.loadRoom(result.state);
-    if (result.missingChampionIds.length) {
-      const warning = formatMissingChampionsMessage(result.missingChampionIds);
-      setPatchWarning(warning);
-      return { ok: true as const, patchWarning: warning };
-    }
-    setPatchWarning(null);
-    return { ok: true as const };
-  };
-
   const handleJoinRoom = (rid: string) => {
     lastWrittenRidRef.current = null;
     setRoomId(rid);
+    setHashNotice(null);
   };
 
   const handleNewDraft = () => {
@@ -299,20 +242,6 @@ export default function Home() {
         />
       ) : null}
 
-      {patchWarning ? (
-        <StatusNotice
-          message={patchWarning}
-          onDismiss={() => setPatchWarning(null)}
-        />
-      ) : null}
-
-      {roomStatus.noPeersTimedOut && showNoPeersNotice ? (
-        <StatusNotice
-          message={NO_PEERS_TIMEOUT_MSG}
-          onDismiss={() => setShowNoPeersNotice(false)}
-        />
-      ) : null}
-
       <header className="flex flex-wrap items-end justify-between gap-2.5 border-b border-line pb-2.5">
         <div>
           <h1 className="font-cond text-[26px] leading-none tracking-[0.14em]">
@@ -333,6 +262,13 @@ export default function Home() {
               className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
               Joueurs
+            </button>
+            <button
+              type="button"
+              onClick={() => setOpponentsOpen((o) => !o)}
+              className="font-cond border border-line bg-panel2 px-2.5 py-1 text-[13px] tracking-[0.08em] text-txt transition hover:border-gold hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
+            >
+              Adversaires
             </button>
             <button
               type="button"
@@ -371,34 +307,24 @@ export default function Home() {
         onSetBan={draft.setBan}
       />
 
-      <PlayersPanel
-        open={playersOpen}
-        onToggle={() => setPlayersOpen((o) => !o)}
+      <PlayerProfilesSection
+        playersOpen={playersOpen}
+        opponentsOpen={opponentsOpen}
+        onTogglePlayers={() => setPlayersOpen((o) => !o)}
+        onToggleOpponents={() => setOpponentsOpen((o) => !o)}
         version={version}
         players={draft.players}
+        opponents={draft.opponents}
         myRoleIndex={draft.myRoleIndex}
         opggRegion={draft.opggRegion}
         onSetOpggRegion={draft.setOpggRegion}
         onSetMyRoleIndex={draft.setMyRoleIndex}
         onUpdateAllyProfile={draft.updateAllyProfile}
+        onUpdateOpponent={draft.updateOpponentProfile}
         onImportPlayerTiers={draft.importPlayerTiers}
       />
 
-      <OpponentsPanel
-        open={opponentsOpen}
-        onToggle={() => setOpponentsOpen((o) => !o)}
-        opponents={draft.opponents}
-        opggRegion={draft.opggRegion}
-        onSetOpggRegion={draft.setOpggRegion}
-        onUpdateOpponent={draft.updateOpponentProfile}
-      />
-
       <RoomLinkPanel roomId={roomId} onJoinRoom={handleJoinRoom} />
-
-      <OfflineDraftPanel
-        offlineToken={offlineDraftToken}
-        onLoadOfflineDraft={handleLoadOfflineDraft}
-      />
     </div>
   );
 }

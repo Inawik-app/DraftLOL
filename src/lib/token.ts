@@ -1,9 +1,6 @@
 import {
-  compressToEncodedURIComponent,
   decompressFromEncodedURIComponent,
 } from "lz-string";
-import { PROFILES, type ProfileKey } from "@/data/profiles";
-import type { Champion, Player, TierLabel } from "./types";
 
 const TOKEN_PREFIX = "DRAFT1.";
 const TOKEN_VERSION_RE = /DRAFT(\d+)\./;
@@ -12,9 +9,13 @@ export const KNOWN_TOKEN_PREFIXES = ["DRAFT1.", "TL1."] as const;
 const EXTRACT_PREFIX_RE = /(?:DRAFT\d+\.|TL1\.)/;
 const TOKEN_BODY_RE = /^((?:DRAFT\d+\.|TL1\.)[^\s"'<>]+)/;
 
+type CompactPayload = {
+  i?: unknown;
+};
+
 /**
  * Extracts a bare DRAFT1. or TL1. token from pasted text (URL, hash, quotes, junk).
- * Returns null when no known prefix is found.
+ * DRAFT1 remains recognized for legacy room-id extraction only.
  */
 export function extractToken(input: string): string | null {
   if (typeof input !== "string") return null;
@@ -56,10 +57,6 @@ function sliceTokenBody(raw: string): string | null {
   const trimmed = raw.trim();
   const match = trimmed.match(TOKEN_BODY_RE);
   return match?.[1] ?? null;
-}
-
-export function formatShareHash(token: string): string {
-  return `#r=${encodeURIComponent(token)}`;
 }
 
 /** Room link hash — only the stable room id (~40 chars with prefix). */
@@ -125,133 +122,6 @@ export function replaceLocationRid(rid: string): void {
   );
 }
 
-export function formatShareUrl(token: string): string {
-  if (typeof window === "undefined") return formatShareHash(token);
-  return `${window.location.origin}${window.location.pathname}${window.location.search}${formatShareHash(token)}`;
-}
-
-export type OfflineDraftState = {
-  profileKey: ProfileKey;
-  picks: {
-    blue: (Champion | null)[];
-    red: (Champion | null)[];
-  };
-  bans: {
-    blue: string[];
-    red: string[];
-  };
-  players: Player[];
-};
-
-export type RoomState = OfflineDraftState & {
-  picks: {
-    blue: (Champion | null)[];
-    red: (Champion | null)[];
-  };
-  bans: {
-    blue: string[];
-    red: string[];
-  };
-  players: Player[];
-  /** Stable room id for realtime sync; omitted for offline-only tokens. */
-  rid?: string;
-};
-
-type CompactPlayer = {
-  n?: string;
-  o?: string;
-  t?: Record<string, string>;
-};
-
-type CompactPayload = {
-  p?: string;
-  b?: unknown;
-  r?: unknown;
-  bb?: unknown;
-  rb?: unknown;
-  pl?: unknown;
-  /** Room id (rid) — stable for the lifetime of a salle. */
-  i?: unknown;
-};
-
-function emptyPlayers(): Player[] {
-  return [0, 1, 2, 3, 4].map(() => ({
-    name: "",
-    opgg: "",
-    tiers: {},
-  }));
-}
-
-function padFiveStrings(arr: unknown, fallback = ""): string[] {
-  const src = Array.isArray(arr) ? arr : [];
-  const out: string[] = [];
-  for (let i = 0; i < 5; i++) {
-    const v = src[i];
-    out.push(typeof v === "string" ? v : fallback);
-  }
-  return out;
-}
-
-function resolvePicks(
-  ids: string[],
-  byId: Map<string, Champion>,
-): (Champion | null)[] {
-  return ids.map((id) => {
-    if (!id) return null;
-    return byId.get(id) ?? null;
-  });
-}
-
-/** Champion ids referenced in a token but absent from the current patch roster. */
-export function findMissingChampionIds(
-  compact: CompactPayload,
-  byId: Map<string, Champion>,
-): string[] {
-  const missing = new Set<string>();
-  const pickIds = [
-    ...padFiveStrings(compact.b),
-    ...padFiveStrings(compact.r),
-    ...padFiveStrings(compact.bb),
-    ...padFiveStrings(compact.rb),
-  ];
-  for (const id of pickIds) {
-    if (id && !byId.has(id)) missing.add(id);
-  }
-  return [...missing].sort((a, b) => a.localeCompare(b));
-}
-
-export function formatMissingChampionsMessage(ids: string[]): string {
-  if (!ids.length) return "";
-  const list = ids.join(", ");
-  return `Ce token référence des champions absents du patch actuel (${list}). Les emplacements concernés sont vides — remplace ces picks ou repartage un lien à jour après les avoir corrigés.`;
-}
-
-function normalizePlayers(raw: unknown): Player[] {
-  const base = emptyPlayers();
-  if (!Array.isArray(raw)) return base;
-  return base.map((fallback, i) => {
-    const row = raw[i] as CompactPlayer | undefined;
-    if (!row || typeof row !== "object") return fallback;
-    const tiers: Player["tiers"] = {};
-    if (row.t && typeof row.t === "object" && !Array.isArray(row.t)) {
-      for (const [id, tier] of Object.entries(row.t)) {
-        if (tier === "S" || tier === "A" || tier === "B") {
-          tiers[id] = tier as TierLabel;
-        }
-      }
-    }
-    return {
-      name: typeof row.n === "string" ? row.n : "",
-      opgg: typeof row.o === "string" ? row.o : "",
-      tiers,
-    };
-  });
-}
-
-function isProfileKey(value: string): value is ProfileKey {
-  return Object.prototype.hasOwnProperty.call(PROFILES, value);
-}
-
 /** Short deterministic hash — sync-safe in browser and Node tests. */
 export function hashRoomId(rid: string): string {
   const bytes = new TextEncoder().encode(rid);
@@ -299,215 +169,50 @@ export function formatDraftPathWithRid(rid: string): string {
   return `/${formatRoomHash(rid)}`;
 }
 
-function parseCompactPayload(
+function parseLegacyDraftPayload(
   token: string,
-): { ok: true; compact: CompactPayload } | { ok: false; reason: string } {
-  if (typeof token !== "string" || !token.trim()) {
-    return {
-      ok: false,
-      reason: "Token vide. Colle un token commençant par DRAFT1.",
-    };
-  }
+): { ok: true; compact: CompactPayload } | { ok: false } {
+  const extracted = extractToken(token);
+  if (!extracted) return { ok: false };
 
-  const trimmed = token.trim();
-  const extracted = extractToken(trimmed);
-  if (!extracted) {
-    return {
-      ok: false,
-      reason:
-        "Préfixe absent. Le token doit commencer par DRAFT1. — recopie-le en entier.",
-    };
-  }
   const versionMatch = extracted.match(TOKEN_VERSION_RE);
-
-  if (!versionMatch) {
-    return {
-      ok: false,
-      reason:
-        "Préfixe absent. Le token doit commencer par DRAFT1. — recopie-le en entier.",
-    };
-  }
-
-  const version = Number(versionMatch[1]);
-  if (version !== 1) {
-    return {
-      ok: false,
-      reason: `Version de token inconnue (DRAFT${version}). Ce client ne lit que DRAFT1.`,
-    };
-  }
+  if (!versionMatch || Number(versionMatch[1]) !== 1) return { ok: false };
 
   const payload = extracted.slice(TOKEN_PREFIX.length);
-  if (!payload) {
-    return {
-      ok: false,
-      reason: "Payload manquant après DRAFT1. — token tronqué.",
-    };
-  }
+  if (!payload) return { ok: false };
 
   let json: string | null;
   try {
     json = decompressFromEncodedURIComponent(payload);
   } catch {
-    return {
-      ok: false,
-      reason:
-        "Payload illisible ou tronqué. Recopie le token en entier, préfixe compris.",
-    };
+    return { ok: false };
   }
-
-  if (json == null || json === "") {
-    return {
-      ok: false,
-      reason:
-        "Payload illisible ou tronqué. Recopie le token en entier, préfixe compris.",
-    };
-  }
+  if (json == null || json === "") return { ok: false };
 
   let data: unknown;
   try {
     data = JSON.parse(json);
   } catch {
-    return {
-      ok: false,
-      reason: "JSON invalide dans le token. Le contenu est corrompu.",
-    };
+    return { ok: false };
   }
-
   if (!data || typeof data !== "object" || Array.isArray(data)) {
-    return {
-      ok: false,
-      reason: "Structure inattendue dans le token.",
-    };
+    return { ok: false };
   }
 
   return { ok: true, compact: data as CompactPayload };
 }
 
-/**
- * Returns a short hashed room name from the token's stable room id (`i`).
- * Returns null when the token has no room id (offline-only draft).
- */
-export function deriveRoomName(token: string): string | null {
-  const parsed = parseCompactPayload(token);
-  if (!parsed.ok) return null;
-  const rid = parsed.compact.i;
-  if (typeof rid !== "string" || !rid.trim()) return null;
-  return hashRoomId(rid.trim());
-}
-
-/** WebRTC room name from a stable session rid (same input as deriveRoomName for tokens carrying `i`). */
+/** WebRTC room name from a stable session rid. */
 export function deriveRoomNameFromRid(rid: string): string {
   return hashRoomId(rid.trim());
 }
 
-/** Reads stable room id (`i`) from a DRAFT token without decoding picks. */
+/** Reads stable room id (`i`) from a legacy DRAFT token. */
 export function extractRoomIdFromToken(input: string): string | null {
   const token = extractToken(input);
   if (!token) return null;
-  const parsed = parseCompactPayload(token);
+  const parsed = parseLegacyDraftPayload(token);
   if (!parsed.ok) return null;
   const rid = parsed.compact.i;
   return typeof rid === "string" && rid.trim() ? rid.trim() : null;
-}
-
-export function replaceLocationHash(token: string): void {
-  const next = formatShareHash(token);
-  if (window.location.hash === next) return;
-  window.history.replaceState(
-    null,
-    "",
-    `${window.location.pathname}${window.location.search}${next}`,
-  );
-}
-
-export function encodeOfflineDraft(state: OfflineDraftState): string {
-  const compact: CompactPayload = {
-    p: state.profileKey,
-    b: state.picks.blue.map((p) => (p ? p.id : "")),
-    r: state.picks.red.map((p) => (p ? p.id : "")),
-    bb: state.bans.blue,
-    rb: state.bans.red,
-    pl: state.players.map((pl) => ({
-      n: pl.name,
-      t: pl.tiers,
-    })),
-  };
-  return (
-    TOKEN_PREFIX +
-    compressToEncodedURIComponent(JSON.stringify(compact))
-  );
-}
-
-export function encodeRoom(state: RoomState): string {
-  const compact: CompactPayload = {
-    p: state.profileKey,
-    b: state.picks.blue.map((p) => (p ? p.id : "")),
-    r: state.picks.red.map((p) => (p ? p.id : "")),
-    bb: state.bans.blue,
-    rb: state.bans.red,
-    pl: state.players.map((pl) => ({
-      n: pl.name,
-      t: pl.tiers,
-    })),
-  };
-  if (state.rid) {
-    compact.i = state.rid;
-  }
-  return (
-    TOKEN_PREFIX +
-    compressToEncodedURIComponent(JSON.stringify(compact))
-  );
-}
-
-export function decodeRoom(
-  token: string,
-  champions: Champion[],
-): | { ok: true; state: RoomState; missingChampionIds: string[] }
-  | { ok: false; reason: string } {
-  try {
-    const parsed = parseCompactPayload(token);
-    if (!parsed.ok) return parsed;
-
-    const compact = parsed.compact;
-    if (
-      typeof compact.p !== "string" ||
-      !Array.isArray(compact.b) ||
-      !Array.isArray(compact.r) ||
-      !Array.isArray(compact.bb) ||
-      !Array.isArray(compact.rb) ||
-      !Array.isArray(compact.pl)
-    ) {
-      return {
-        ok: false,
-        reason:
-          "Structure inattendue : il manque le profil, les picks, les bans ou les joueurs.",
-      };
-    }
-
-    const profileKey = isProfileKey(compact.p) ? compact.p : "teamfight";
-    const byId = new Map(champions.map((c) => [c.id, c]));
-    const rid = typeof compact.i === "string" && compact.i.trim() ? compact.i.trim() : undefined;
-    const missingChampionIds = findMissingChampionIds(compact, byId);
-
-    const state: RoomState = {
-      profileKey,
-      picks: {
-        blue: resolvePicks(padFiveStrings(compact.b), byId),
-        red: resolvePicks(padFiveStrings(compact.r), byId),
-      },
-      bans: {
-        blue: padFiveStrings(compact.bb),
-        red: padFiveStrings(compact.rb),
-      },
-      players: normalizePlayers(compact.pl),
-      ...(rid ? { rid } : {}),
-    };
-
-    return { ok: true, state, missingChampionIds };
-  } catch {
-    return {
-      ok: false,
-      reason: "Token illisible. Recopie-le en entier, préfixe compris.",
-    };
-  }
 }

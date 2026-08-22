@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PROFILES } from "@/data/profiles";
+import { championPlaysRole } from "@/data/roles";
 import { suggestForRole } from "./suggest";
 import type { Champion, Pick, Player, Tag } from "./types";
 
@@ -31,9 +32,7 @@ describe("suggestForRole", () => {
   const profile = PROFILES.teamfight;
 
   it("un tier S hors profil passe devant un sans-tier légèrement mieux adapté", () => {
-    // Fit : un peu utile au profil (utility) → delta brut > 0, mais sans tier (−6)
     const fit = champ("FitChamp", ["utility"]);
-    // Off : hors profil, mais tier S (+10)
     const off = champ("OffChamp", ["splitpush", "mobility"]);
 
     const players = emptyPlayers();
@@ -50,13 +49,11 @@ describe("suggestForRole", () => {
       [fit, off],
     );
 
-    expect(result[0]?.id).toBe("OffChamp");
+    expect(result.champions[0]?.id).toBe("OffChamp");
   });
 
   it("un champion banni n'apparaît jamais", () => {
-    const banned = champ("BannedOne", ["frontline", "dps", "ad"]);
     const ok = champ("OkOne", ["ap", "utility"]);
-    // available = roster après exclusion des bans (le ban n'y figure pas)
     const result = suggestForRole(
       0,
       emptySlots(),
@@ -64,8 +61,7 @@ describe("suggestForRole", () => {
       emptyPlayers(),
       [ok],
     );
-    expect(result.find((c) => c.id === banned.id)).toBeUndefined();
-    expect(result.every((c) => c.id !== "BannedOne")).toBe(true);
+    expect(result.champions.find((c) => c.id === "BannedOne")).toBeUndefined();
   });
 
   it("exclut un champion déjà pris même s'il est encore dans available", () => {
@@ -78,8 +74,8 @@ describe("suggestForRole", () => {
       taken,
       free,
     ]);
-    expect(result.map((c) => c.id)).not.toContain("Taken");
-    expect(result.map((c) => c.id)).toContain("Free");
+    expect(result.champions.map((c) => c.id)).not.toContain("Taken");
+    expect(result.champions.map((c) => c.id)).toContain("Free");
   });
 
   it("ne dépasse jamais cinq éléments", () => {
@@ -93,7 +89,7 @@ describe("suggestForRole", () => {
       emptyPlayers(),
       many,
     );
-    expect(result.length).toBeLessThanOrEqual(5);
+    expect(result.champions.length).toBeLessThanOrEqual(5);
   });
 
   it("un pool de joueur vide retourne quand même des suggestions", () => {
@@ -109,7 +105,40 @@ describe("suggestForRole", () => {
       emptyPlayers(),
       pool,
     );
-    expect(result.length).toBeGreaterThan(0);
-    expect(result.length).toBeLessThanOrEqual(5);
+    expect(result.champions.length).toBeGreaterThan(0);
+    expect(result.champions.length).toBeLessThanOrEqual(5);
+  });
+
+  it("slot SUP n'inclut que des champions jouables sup", () => {
+    const leeSin = champ("LeeSin", ["dps", "mobility"]);
+    const thresh = champ("Thresh", ["utility", "engage"]);
+    const lux = champ("Lux", ["ap", "utility", "waveclear"]);
+
+    const result = suggestForRole(
+      4,
+      emptySlots(),
+      profile,
+      emptyPlayers(),
+      [leeSin, thresh, lux],
+    );
+
+    expect(result.champions.length).toBeGreaterThan(0);
+    for (const c of result.champions) {
+      expect(championPlaysRole(c.id, "sup")).toBe(true);
+    }
+    expect(result.champions.map((c) => c.id)).not.toContain("LeeSin");
+  });
+
+  it("élargit au roster complet si aucun candidat ne correspond au rôle", () => {
+    const onlyJgl = champ("LeeSin", ["dps", "mobility"]);
+    const result = suggestForRole(
+      4,
+      emptySlots(),
+      profile,
+      emptyPlayers(),
+      [onlyJgl],
+    );
+    expect(result.roleFilterWidened).toBe(true);
+    expect(result.champions[0]?.id).toBe("LeeSin");
   });
 });

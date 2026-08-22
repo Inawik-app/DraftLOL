@@ -385,35 +385,6 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     [myRoleIndex, persistAllyProfiles, publishMyPlayer],
   );
 
-  const loadRoom = useCallback(
-    (state: {
-      profileKey: ProfileKey;
-      picks: { blue: TeamChampions; red: TeamChampions };
-      bans: { blue: TeamBans; red: TeamBans };
-      players: Player[];
-    }) => {
-      const nextPickIds = picksToIds(state.picks);
-      const nextBans = {
-        blue: [...state.bans.blue],
-        red: [...state.bans.red],
-      };
-      setProfileKey(state.profileKey);
-      setPickIds(nextPickIds);
-      setBans(nextBans);
-      const merged = state.players.map((p, i) => ({
-        name: p.name,
-        opgg: loadAllyProfiles()[i]?.opgg ?? "",
-        tiers: { ...p.tiers },
-      }));
-      setPlayers(merged);
-      persistAllyProfiles(merged);
-      if (hasLocalDraftContent(nextPickIds, nextBans)) {
-        pushSharedDraft(state.profileKey, nextPickIds, nextBans);
-      }
-    },
-    [persistAllyProfiles, pushSharedDraft],
-  );
-
   const importPlayerTiers = useCallback(
     (index: number, tiers: Record<string, TierLabel>) => {
       if (myRoleIndex === null || index !== myRoleIndex) return;
@@ -467,7 +438,6 @@ export function useDraft(initialProfile: ProfileKey = "teamfight") {
     setProfile,
     updatePlayer,
     importPlayerTiers,
-    loadRoom,
     reset,
     used,
   };
