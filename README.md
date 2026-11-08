@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Draft.board
 
-## Getting Started
+Outil d'aide à la draft League of Legends, utilisé par une équipe de cinq pendant la sélection des champions.
 
-First, run the development server:
+Il n'automatise rien : il montre en temps réel ce qui manque à la composition en cours (engage, frontline, dégâts magiques…) et propose des champions qui comblent ce manque **parmi ceux que les joueurs maîtrisent vraiment**. Pensé pour être lu en quelques secondes, puisqu'on a moins de 30 secondes pour choisir.
+
+## Ce que fait l'application
+
+- **Analyse de la composition** à partir d'un vocabulaire fermé de 15 tags (frontline, engage, poke, waveclear…).
+- **Suggestions** tirées du pool réel de chaque joueur, avec ses profils et sa tier list.
+- **Salle partagée en temps réel** entre les cinq joueurs, en pair-à-pair.
+- **Séries de plusieurs parties** : suivi des champions déjà joués.
+- **Éditeur de tier list**.
+
+## Choix techniques
+
+Contrainte de départ : **aucune base de données, aucun stockage serveur**.
+
+- L'état partagé est synchronisé en pair-à-pair avec **Yjs + WebRTC** ; le serveur de signalisation ne stocke rien.
+- Il peut aussi tenir dans un **lien compressé** (lz-string) que les joueurs se transmettent.
+- Les données des champions viennent de **Data Dragon**, le CDN public de Riot, chargé côté client.
+- Les choix de conception sont décrits dans `docs/SPEC.md`.
+
+## Stack
+
+Next.js (App Router) · React · TypeScript · Yjs · WebRTC · Vitest · Vercel
+
+## Lancer le projet
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
+npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Projet de fan, non approuvé par Riot Games. League of Legends est une marque de Riot Games, Inc.
